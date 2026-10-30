@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with reference to family budget group",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 1024 },
+        "familyId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["uid", "email"]
+    },
+    "Family": {
+      "title": "Family",
+      "description": "Shared family budget workspace for couple",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 16 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "memberUids": { "type": "array" },
+        "initialAccountBalance": { "type": "number" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "code", "ownerUid", "memberUids"]
+    },
+    "FamilyYearPlan": {
+      "title": "FamilyYearPlan",
+      "description": "Annual budget planning categories and values for a given year",
+      "type": "object",
+      "properties": {
+        "year": { "type": "number" },
+        "categories": { "type": "array" },
+        "initialBalance": { "type": "number" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["year", "categories"]
+    },
+    "FamilySalaryStrategy": {
+      "title": "FamilySalaryStrategy",
+      "description": "Salary payment schedule strategy for the family",
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "maxLength": 32 },
+        "valePercent": { "type": "number" },
+        "valeDay": { "type": "number" },
+        "paymentDay": { "type": "number" },
+        "singlePaymentDay": { "type": "number" },
+        "monthlyNetSalary": { "type": "number" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["mode", "valePercent", "valeDay", "paymentDay", "singlePaymentDay", "monthlyNetSalary"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Real financial transaction expense or income recorded by couple",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "familyId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 32 },
+        "month": { "type": "number" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "categoryId": { "type": "string", "maxLength": 128 },
+        "categoryName": { "type": "string", "maxLength": 128 },
+        "itemId": { "type": "string", "maxLength": 128 },
+        "itemName": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "description": { "type": "string", "maxLength": 256 },
+        "paymentMethod": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["paid", "pending"] },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByName": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "familyId", "date", "month", "type", "categoryId", "categoryName", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private profile of the authenticated user"
+    },
+    "/families/{familyId}": {
+      "schema": "Family",
+      "description": "Core family shared budget workspace document"
+    },
+    "/families/{familyId}/yearPlans/{yearId}": {
+      "schema": "FamilyYearPlan",
+      "description": "Annual budget planning for a specific year in the family"
+    },
+    "/families/{familyId}/settings/salaryStrategy": {
+      "schema": "FamilySalaryStrategy",
+      "description": "Salary strategy configurations for the family"
+    },
+    "/families/{familyId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Shared transactions ledger recorded by either spouse"
+    }
+  }
+}

@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { AuthProvider } from './contexts/AuthContext';
 import { Header, ActiveTab } from './components/Header';
 import { OverviewView } from './components/OverviewView';
 import { SpreadsheetView } from './components/SpreadsheetView';
@@ -14,16 +15,18 @@ import { SalaryStrategyView } from './components/SalaryStrategyView';
 import { TransactionModal } from './components/TransactionModal';
 import { CategoryItemModal } from './components/CategoryItemModal';
 import { YearRolloverModal } from './components/YearRolloverModal';
+import { FamilySyncModal } from './components/FamilySyncModal';
 import { useBudgetStore } from './hooks/useBudgetStore';
 import { RealTransaction } from './types/budget';
 
-export default function App() {
+function BudgetAppContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<RealTransaction | null>(null);
   const [isCategoryItemModalOpen, setIsCategoryItemModalOpen] = useState(false);
   const [targetCategoryIdForNewItem, setTargetCategoryIdForNewItem] = useState<string | undefined>();
   const [isYearRolloverOpen, setIsYearRolloverOpen] = useState(false);
+  const [isFamilySyncOpen, setIsFamilySyncOpen] = useState(false);
 
   const {
     selectedYear,
@@ -92,6 +95,7 @@ export default function App() {
         onOpenNewTransaction={handleOpenNewTransaction}
         onExportCSV={exportSpreadsheetCSV}
         onResetOriginal={handleReset}
+        onOpenFamilySync={() => setIsFamilySyncOpen(true)}
       />
 
       {/* Main Content Area (pb-24 on mobile ensures thumb nav bar never covers content) */}
@@ -110,6 +114,7 @@ export default function App() {
             recentTransactions={transactions}
             onNavigateTab={setActiveTab}
             onOpenNewTransaction={handleOpenNewTransaction}
+            onOpenFamilySync={() => setIsFamilySyncOpen(true)}
           />
         )}
 
@@ -173,9 +178,16 @@ export default function App() {
             <span>·</span>
             <span>Ano Ativo: {selectedYear}</span>
             <span>·</span>
-            <span>Planejamento financeiro estruturado com controle de gastos reais</span>
+            <span>Planejamento familiar compartilhado e controle de gastos reais</span>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsFamilySyncOpen(true)}
+              className="font-medium text-pink-700 hover:text-pink-800 transition-colors"
+            >
+              Espaço do Casal
+            </button>
+            <span>·</span>
             <button
               onClick={() => setIsYearRolloverOpen(true)}
               className="font-medium text-emerald-700 hover:text-emerald-800 transition-colors"
@@ -240,6 +252,19 @@ export default function App() {
         availableYears={availableYears}
         onCreateNewYear={createNextYearBudget}
       />
+
+      <FamilySyncModal
+        isOpen={isFamilySyncOpen}
+        onClose={() => setIsFamilySyncOpen(false)}
+      />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BudgetAppContent />
+    </AuthProvider>
   );
 }

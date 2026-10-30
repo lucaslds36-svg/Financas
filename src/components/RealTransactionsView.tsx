@@ -228,7 +228,14 @@ export const RealTransactionsView: React.FC<RealTransactionsViewProps> = ({
                       {formatDateBR(tx.date)}
                     </td>
                     <td className="py-3 px-4 font-medium text-neutral-900">
-                      {tx.description}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{tx.description}</span>
+                        {tx.createdByName && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-100 text-neutral-600 border border-neutral-200">
+                            {tx.createdByName.split(' ')[0]}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-neutral-600">
                       <span className="font-medium text-neutral-800">{tx.categoryName}</span>

@@ -44,7 +44,29 @@ export interface RealTransaction {
   description: string;
   paymentMethod: PaymentMethod;
   status: 'paid' | 'pending';
+  createdByUid?: string;
+  createdByName?: string;
+  createdByPhoto?: string;
   createdAt: number;
+}
+
+export interface FamilyMemberInfo {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+}
+
+export interface FamilyGroup {
+  id: string;
+  name: string;
+  code: string;
+  ownerUid: string;
+  memberUids: string[];
+  members?: FamilyMemberInfo[];
+  initialAccountBalance?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MonthSummary {

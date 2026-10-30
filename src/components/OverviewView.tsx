@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -12,7 +13,12 @@ import {
   BarChart3, 
   Plus,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Heart,
+  Users,
+  Copy,
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { 
   FinancialHealthStatus, 
@@ -48,6 +54,7 @@ interface OverviewViewProps {
   recentTransactions: RealTransaction[];
   onNavigateTab: (tab: ActiveTab) => void;
   onOpenNewTransaction: () => void;
+  onOpenFamilySync?: () => void;
 }
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
@@ -63,7 +70,17 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   recentTransactions,
   onNavigateTab,
   onOpenNewTransaction,
+  onOpenFamilySync,
 }) => {
+  const { user, family, familyMembers } = useAuth();
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyCode = () => {
+    if (!family?.code) return;
+    navigator.clipboard.writeText(family.code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
   // Current month reference (index 10 = Nov)
   const currentMonthSummary = monthlySummaries[10] || monthlySummaries[0];
 
@@ -120,6 +137,78 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Couple Shared Budget Banner */}
+      {user && family ? (
+        <div className="bg-gradient-to-r from-pink-50/80 via-white to-emerald-50/80 border border-pink-200/80 rounded-xl p-4 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-pink-100/80 text-pink-700 flex items-center justify-center shrink-0">
+              <Heart className="w-4 h-4 fill-current" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-neutral-900">
+                  {family.name}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Sincronizado ao Vivo
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-600 mt-0.5">
+                {familyMembers.length > 1
+                  ? `Conectados: ${familyMembers.map((m) => m.displayName.split(' ')[0]).join(' & ')} · Ambos podem lançar gastos no celular`
+                  : `Compartilhe o código com sua esposa para ela lançar gastos junto com você.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-neutral-200 shadow-2xs text-xs">
+              <span className="text-[10px] uppercase font-semibold text-neutral-400">Código:</span>
+              <span className="font-mono font-bold text-emerald-800 tracking-wider">{family.code}</span>
+              <button
+                onClick={handleCopyCode}
+                title="Copiar código para enviar para a esposa"
+                className="p-1 text-neutral-400 hover:text-emerald-700 hover:bg-neutral-50 rounded"
+              >
+                {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            <button
+              onClick={onOpenFamilySync}
+              className="px-3 py-1.5 text-xs font-semibold text-neutral-700 bg-white hover:bg-neutral-50 border border-neutral-300 rounded-lg transition-colors whitespace-nowrap shadow-2xs"
+            >
+              Gerenciar Casal
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-white border border-emerald-200/90 rounded-xl p-4 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-neutral-900">
+                Acesso para Você e sua Esposa
+              </h3>
+              <p className="text-[11px] text-neutral-600 mt-0.5">
+                Conecte com sua conta Google para sincronizar os gastos do casal no celular em tempo real.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onOpenFamilySync}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-xs transition-colors whitespace-nowrap"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Conectar Orçamento do Casal</span>
+          </button>
+        </div>
+      )}
 
       {/* Financial Health Score Hero Card */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs overflow-hidden relative">

@@ -1,4 +1,4 @@
-import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Plus, 
   Download, 
@@ -8,7 +8,9 @@ import {
   Receipt, 
   BarChart3, 
   TrendingUp,
-  Split
+  Split,
+  Users,
+  Heart
 } from 'lucide-react';
 
 export type ActiveTab = 'overview' | 'spreadsheet' | 'transactions' | 'comparison' | 'evolution' | 'strategy';
@@ -19,6 +21,7 @@ interface HeaderProps {
   onOpenNewTransaction: () => void;
   onExportCSV: () => void;
   onResetOriginal: () => void;
+  onOpenFamilySync: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,7 +30,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewTransaction,
   onExportCSV,
   onResetOriginal,
+  onOpenFamilySync,
 }) => {
+  const { user, family } = useAuth();
   return (
     <>
       {/* Desktop & Mobile Top Header Bar */}
@@ -114,7 +119,33 @@ export const Header: React.FC<HeaderProps> = ({
             </nav>
 
             {/* Zone 3: Actions */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Couple / Family Sync Button */}
+              <button
+                onClick={onOpenFamilySync}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold rounded-lg border transition-all shrink-0 min-h-[38px] sm:min-h-[40px] ${
+                  user
+                    ? 'bg-pink-50/80 text-pink-700 border-pink-200 hover:bg-pink-100'
+                    : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50 shadow-2xs'
+                }`}
+                title={user ? 'Orçamento Compartilhado do Casal' : 'Conectar com Google para compartilhar com sua esposa'}
+              >
+                {user ? (
+                  <>
+                    <Heart className="w-3.5 h-3.5 text-pink-600 fill-current shrink-0" />
+                    <span className="hidden sm:inline">
+                      {family?.name ? family.name : 'Casal'}
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  </>
+                ) : (
+                  <>
+                    <Users className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                    <span>Conectar Casal</span>
+                  </>
+                )}
+              </button>
+
               <button
                 onClick={onExportCSV}
                 title="Exportar Planilha CSV"

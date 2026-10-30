@@ -1,4 +1,14 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  updateDoc, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   BudgetCategory, 
   BudgetItem, 
@@ -21,6 +31,10 @@ const STORAGE_INITIAL_ACCOUNT_BALANCE_KEY = 'orcamento_familia_initial_account_b
 const STORAGE_SALARY_STRATEGY_KEY = 'orcamento_familia_salary_strategy_v1';
 
 export function useBudgetStore() {
+  const { user, family, isSyncing } = useAuth();
+  const familyId = family?.id;
+
+  // Selected Year
   const [selectedYear, setSelectedYear] = useState<number>(() => {
     try {
       const savedYear = localStorage.getItem(STORAGE_SELECTED_YEAR_KEY);
@@ -34,7 +48,7 @@ export function useBudgetStore() {
   });
 
   // Saldo real inicial em conta bancária (ponto de partida real)
-  const [initialAccountBalance, setInitialAccountBalance] = useState<number>(() => {
+  const [initialAccountBalance, setInitialAccountBalanceState] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_INITIAL_ACCOUNT_BALANCE_KEY);
       if (saved) {
@@ -43,11 +57,11 @@ export function useBudgetStore() {
     } catch (e) {
       console.error(e);
     }
-    return 1500; // Padrão inicial realista (ex: R$ 1.500 na conta ao começar)
+    return 1500;
   });
 
   // Estratégia de recebimento de salário (Vale + Pagamento vs Pagamento Único)
-  const [salaryStrategy, setSalaryStrategy] = useState<SalaryStrategyConfig>(() => {
+  const [salaryStrategy, setSalaryStrategyState] = useState<SalaryStrategyConfig>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_SALARY_STRATEGY_KEY);
       if (saved) {
@@ -66,6 +80,7 @@ export function useBudgetStore() {
     };
   });
 
+  // Year plans
   const [yearPlans, setYearPlans] = useState<Record<number, YearBudgetPlan>>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_YEAR_PLANS_KEY);
@@ -92,6 +107,7 @@ export function useBudgetStore() {
     };
   });
 
+  // Real Transactions
   const [transactions, setTransactions] = useState<RealTransaction[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_TRANSACTIONS_KEY);
@@ -107,6 +123,129 @@ export function useBudgetStore() {
     }
     return INITIAL_TRANSACTIONS;
   });
+
+  // Cloud Sync flag to avoid feedback loops
+  const isUpdatingFromCloudRef = useRef(false);
+
+  // --- FIRESTORE SYNC: Transactions ---
+  useEffect(() => {
+    if (!familyId || !user) return;
+
+    const txCollectionRef = collection(db, 'families', familyId, 'transactions');
+    const unsubscribe = onSnapshot(
+      txCollectionRef,
+      (snapshot: any) => {
+        if (!snapshot.empty) {
+          const cloudTxs: RealTransaction[] = [];
+          snapshot.forEach((docSnap: any) => {
+            const data = docSnap.data() as RealTransaction;
+            cloudTxs.push(data);
+          });
+          // Sort by date desc
+          cloudTxs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          setTransactions(cloudTxs);
+        } else {
+          // If Firestore collection is empty, seed initial local transactions
+          if (transactions.length > 0) {
+            transactions.forEach(async (t) => {
+              try {
+                await setDoc(doc(db, 'families', familyId, 'transactions', t.id), {
+                  ...t,
+                  familyId,
+                  createdByUid: user.uid,
+                  createdByName: user.displayName || 'Lucas',
+                  createdAt: t.createdAt || Date.now(),
+                });
+              } catch (e: unknown) {
+                console.warn('Seeding tx to cloud failed:', e);
+              }
+            });
+          }
+        }
+      },
+      (err: unknown) => {
+        handleFirestoreError(err, OperationType.GET, `families/${familyId}/transactions`);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [familyId, user]);
+
+  // --- FIRESTORE SYNC: Year Plans (Categories) ---
+  useEffect(() => {
+    if (!familyId || !user) return;
+
+    const yearPlansRef = collection(db, 'families', familyId, 'yearPlans');
+    const unsubscribe = onSnapshot(
+      yearPlansRef,
+      (snapshot: any) => {
+        if (!snapshot.empty) {
+          isUpdatingFromCloudRef.current = true;
+          const cloudPlans: Record<number, YearBudgetPlan> = {};
+          snapshot.forEach((docSnap: any) => {
+            const data = docSnap.data();
+            const yearNum = Number(data.year);
+            if (!isNaN(yearNum)) {
+              cloudPlans[yearNum] = {
+                categories: data.categories || INITIAL_CATEGORIES,
+                initialBalance: Number(data.initialBalance) || 0,
+              };
+            }
+          });
+          setYearPlans((prev) => ({ ...prev, ...cloudPlans }));
+          setTimeout(() => {
+            isUpdatingFromCloudRef.current = false;
+          }, 300);
+        } else {
+          // If empty, upload current active year plans
+          Object.entries(yearPlans).forEach(async ([yearStr, plan]) => {
+            try {
+              await setDoc(doc(db, 'families', familyId, 'yearPlans', yearStr), {
+                year: Number(yearStr),
+                categories: plan.categories,
+                initialBalance: plan.initialBalance || 0,
+                updatedAt: new Date().toISOString(),
+              });
+            } catch (e: unknown) {
+              console.warn('Failed to seed year plan:', e);
+            }
+          });
+        }
+      },
+      (err: unknown) => {
+        handleFirestoreError(err, OperationType.GET, `families/${familyId}/yearPlans`);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [familyId, user]);
+
+  // --- FIRESTORE SYNC: Salary Strategy & Initial Balance ---
+  useEffect(() => {
+    if (!familyId || !user) return;
+
+    const strategyDocRef = doc(db, 'families', familyId, 'settings', 'salaryStrategy');
+    const unsubscribe = onSnapshot(
+      strategyDocRef,
+      (snap: any) => {
+        if (snap.exists()) {
+          const data = snap.data() as SalaryStrategyConfig;
+          setSalaryStrategyState(data);
+        }
+      },
+      (err: unknown) => {
+        // silent fallback
+        console.warn('Strategy read error:', err);
+      }
+    );
+
+    // Initial account balance from family root doc
+    if (family?.initialAccountBalance !== undefined) {
+      setInitialAccountBalanceState(family.initialAccountBalance);
+    }
+
+    return () => unsubscribe();
+  }, [familyId, user, family?.initialAccountBalance]);
 
   // Current year plan
   const currentPlan = useMemo<YearBudgetPlan>(() => {
@@ -132,12 +271,12 @@ export function useBudgetStore() {
     return years;
   }, [yearPlans, selectedYear]);
 
-  // Persist to localStorage
+  // Persist to localStorage as backup/offline
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_YEAR_PLANS_KEY, JSON.stringify(yearPlans));
     } catch (e) {
-      console.error('Failed to save year plans to localStorage:', e);
+      console.error(e);
     }
   }, [yearPlans]);
 
@@ -153,7 +292,7 @@ export function useBudgetStore() {
     try {
       localStorage.setItem(STORAGE_TRANSACTIONS_KEY, JSON.stringify(transactions));
     } catch (e) {
-      console.error('Failed to save transactions to localStorage:', e);
+      console.error(e);
     }
   }, [transactions]);
 
@@ -173,161 +312,290 @@ export function useBudgetStore() {
     }
   }, [salaryStrategy]);
 
+  // Helper to sync year plan to Firestore
+  const syncYearPlanToFirestore = useCallback(
+    async (year: number, plan: YearBudgetPlan) => {
+      if (!familyId || !user) return;
+      try {
+        await setDoc(doc(db, 'families', familyId, 'yearPlans', year.toString()), {
+          year,
+          categories: plan.categories,
+          initialBalance: plan.initialBalance,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `families/${familyId}/yearPlans/${year}`);
+      }
+    },
+    [familyId, user]
+  );
+
   // Helper to mutate categories for the current year
   const updateCurrentCategories = useCallback(
     (updater: (cats: BudgetCategory[]) => BudgetCategory[]) => {
       setYearPlans((prev) => {
         const existing = prev[selectedYear] || { categories: INITIAL_CATEGORIES, initialBalance: 0 };
-        return {
-          ...prev,
-          [selectedYear]: {
-            ...existing,
-            categories: updater(existing.categories),
-          },
+        const updatedPlan: YearBudgetPlan = {
+          ...existing,
+          categories: updater(existing.categories),
         };
+        const nextState = {
+          ...prev,
+          [selectedYear]: updatedPlan,
+        };
+
+        // Sync to cloud
+        syncYearPlanToFirestore(selectedYear, updatedPlan);
+
+        return nextState;
       });
     },
-    [selectedYear]
+    [selectedYear, syncYearPlanToFirestore]
   );
 
   // Actions for Planning / Categories / Items
-  const updateItemValue = useCallback((categoryId: string, itemId: string, monthIndex: MonthIndex, value: number) => {
-    updateCurrentCategories((prev) =>
-      prev.map((cat) => {
-        if (cat.id !== categoryId) return cat;
-        return {
-          ...cat,
-          items: cat.items.map((item) => {
-            if (item.id !== itemId) return item;
-            const newValues = [...item.values];
-            newValues[monthIndex] = Math.max(0, Number(value) || 0);
-            return { ...item, values: newValues };
-          }),
-        };
-      })
-    );
-  }, [updateCurrentCategories]);
+  const updateItemValue = useCallback(
+    (categoryId: string, itemId: string, monthIndex: MonthIndex, value: number) => {
+      updateCurrentCategories((prev) =>
+        prev.map((cat) => {
+          if (cat.id !== categoryId) return cat;
+          return {
+            ...cat,
+            items: cat.items.map((item) => {
+              if (item.id !== itemId) return item;
+              const newValues = [...item.values];
+              newValues[monthIndex] = Math.max(0, Number(value) || 0);
+              return { ...item, values: newValues };
+            }),
+          };
+        })
+      );
+    },
+    [updateCurrentCategories]
+  );
 
-  const fillItemAllMonths = useCallback((categoryId: string, itemId: string, value: number) => {
-    updateCurrentCategories((prev) =>
-      prev.map((cat) => {
-        if (cat.id !== categoryId) return cat;
-        return {
-          ...cat,
-          items: cat.items.map((item) => {
-            if (item.id !== itemId) return item;
-            return { ...item, values: Array(12).fill(Math.max(0, Number(value) || 0)) };
-          }),
-        };
-      })
-    );
-  }, [updateCurrentCategories]);
+  const fillItemAllMonths = useCallback(
+    (categoryId: string, itemId: string, value: number) => {
+      updateCurrentCategories((prev) =>
+        prev.map((cat) => {
+          if (cat.id !== categoryId) return cat;
+          return {
+            ...cat,
+            items: cat.items.map((item) => {
+              if (item.id !== itemId) return item;
+              return { ...item, values: Array(12).fill(Math.max(0, Number(value) || 0)) };
+            }),
+          };
+        })
+      );
+    },
+    [updateCurrentCategories]
+  );
 
-  const addItem = useCallback((categoryId: string, itemName: string, initialValue: number = 0) => {
-    if (!itemName.trim()) return;
-    const newItem: BudgetItem = {
-      id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      name: itemName.trim(),
-      values: Array(12).fill(initialValue),
-    };
-    updateCurrentCategories((prev) =>
-      prev.map((cat) => {
-        if (cat.id !== categoryId) return cat;
-        return {
-          ...cat,
-          items: [...cat.items, newItem],
-        };
-      })
-    );
-  }, [updateCurrentCategories]);
+  const addItem = useCallback(
+    (categoryId: string, itemName: string, initialValue: number = 0) => {
+      if (!itemName.trim()) return;
+      const newItem: BudgetItem = {
+        id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        name: itemName.trim(),
+        values: Array(12).fill(initialValue),
+      };
+      updateCurrentCategories((prev) =>
+        prev.map((cat) => {
+          if (cat.id !== categoryId) return cat;
+          return {
+            ...cat,
+            items: [...cat.items, newItem],
+          };
+        })
+      );
+    },
+    [updateCurrentCategories]
+  );
 
-  const removeItem = useCallback((categoryId: string, itemId: string) => {
-    updateCurrentCategories((prev) =>
-      prev.map((cat) => {
-        if (cat.id !== categoryId) return cat;
-        return {
-          ...cat,
-          items: cat.items.filter((item) => item.id !== itemId),
-        };
-      })
-    );
-  }, [updateCurrentCategories]);
+  const removeItem = useCallback(
+    (categoryId: string, itemId: string) => {
+      updateCurrentCategories((prev) =>
+        prev.map((cat) => {
+          if (cat.id !== categoryId) return cat;
+          return {
+            ...cat,
+            items: cat.items.filter((item) => item.id !== itemId),
+          };
+        })
+      );
+    },
+    [updateCurrentCategories]
+  );
 
-  const renameItem = useCallback((categoryId: string, itemId: string, newName: string) => {
-    if (!newName.trim()) return;
-    updateCurrentCategories((prev) =>
-      prev.map((cat) => {
-        if (cat.id !== categoryId) return cat;
-        return {
-          ...cat,
-          items: cat.items.map((item) => (item.id === itemId ? { ...item, name: newName.trim() } : item)),
-        };
-      })
-    );
-  }, [updateCurrentCategories]);
+  const renameItem = useCallback(
+    (categoryId: string, itemId: string, newName: string) => {
+      if (!newName.trim()) return;
+      updateCurrentCategories((prev) =>
+        prev.map((cat) => {
+          if (cat.id !== categoryId) return cat;
+          return {
+            ...cat,
+            items: cat.items.map((item) => (item.id === itemId ? { ...item, name: newName.trim() } : item)),
+          };
+        })
+      );
+    },
+    [updateCurrentCategories]
+  );
 
-  const addCategory = useCallback((name: string, type: 'income' | 'expense') => {
-    if (!name.trim()) return;
-    const newCategory: BudgetCategory = {
-      id: `cat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      name: name.trim(),
-      type,
-      items: [
-        {
-          id: `item_${Date.now()}_default`,
-          name: 'Item 1',
-          values: Array(12).fill(0),
-        },
-      ],
-    };
-    updateCurrentCategories((prev) => [...prev, newCategory]);
-  }, [updateCurrentCategories]);
+  const addCategory = useCallback(
+    (name: string, type: 'income' | 'expense') => {
+      if (!name.trim()) return;
+      const newCategory: BudgetCategory = {
+        id: `cat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        name: name.trim(),
+        type,
+        items: [
+          {
+            id: `item_${Date.now()}_default`,
+            name: 'Item 1',
+            values: Array(12).fill(0),
+          },
+        ],
+      };
+      updateCurrentCategories((prev) => [...prev, newCategory]);
+    },
+    [updateCurrentCategories]
+  );
 
-  const removeCategory = useCallback((categoryId: string) => {
-    updateCurrentCategories((prev) => prev.filter((cat) => cat.id !== categoryId));
-  }, [updateCurrentCategories]);
+  const removeCategory = useCallback(
+    (categoryId: string) => {
+      updateCurrentCategories((prev) => prev.filter((cat) => cat.id !== categoryId));
+    },
+    [updateCurrentCategories]
+  );
 
-  const renameCategory = useCallback((categoryId: string, newName: string) => {
-    if (!newName.trim()) return;
-    updateCurrentCategories((prev) =>
-      prev.map((cat) => (cat.id === categoryId ? { ...cat, name: newName.trim() } : cat))
-    );
-  }, [updateCurrentCategories]);
+  const renameCategory = useCallback(
+    (categoryId: string, newName: string) => {
+      if (!newName.trim()) return;
+      updateCurrentCategories((prev) =>
+        prev.map((cat) => (cat.id === categoryId ? { ...cat, name: newName.trim() } : cat))
+      );
+    },
+    [updateCurrentCategories]
+  );
 
-  const updateInitialBalance = useCallback((value: number) => {
-    setYearPlans((prev) => {
-      const existing = prev[selectedYear] || { categories: INITIAL_CATEGORIES, initialBalance: 0 };
-      return {
-        ...prev,
-        [selectedYear]: {
+  const updateInitialBalance = useCallback(
+    (value: number) => {
+      setYearPlans((prev) => {
+        const existing = prev[selectedYear] || { categories: INITIAL_CATEGORIES, initialBalance: 0 };
+        const updatedPlan: YearBudgetPlan = {
           ...existing,
           initialBalance: Number(value) || 0,
-        },
+        };
+        syncYearPlanToFirestore(selectedYear, updatedPlan);
+        return {
+          ...prev,
+          [selectedYear]: updatedPlan,
+        };
+      });
+    },
+    [selectedYear, syncYearPlanToFirestore]
+  );
+
+  const setInitialAccountBalance = useCallback(
+    async (val: number) => {
+      setInitialAccountBalanceState(val);
+      if (familyId && user) {
+        try {
+          await updateDoc(doc(db, 'families', familyId), {
+            initialAccountBalance: val,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('Failed to update family initialAccountBalance:', e);
+        }
+      }
+    },
+    [familyId, user]
+  );
+
+  const updateSalaryStrategy = useCallback(
+    async (config: Partial<SalaryStrategyConfig>) => {
+      setSalaryStrategyState((prev) => {
+        const updated = { ...prev, ...config };
+        if (familyId && user) {
+          setDoc(
+            doc(db, 'families', familyId, 'settings', 'salaryStrategy'),
+            { ...updated, updatedAt: new Date().toISOString() },
+            { merge: true }
+          ).catch((e: unknown) => console.warn('Salary strategy cloud save error:', e));
+        }
+        return updated;
+      });
+    },
+    [familyId, user]
+  );
+
+  // Actions for Real Transactions (With couple attribution)
+  const addTransaction = useCallback(
+    async (tx: Omit<RealTransaction, 'id' | 'createdAt'>) => {
+      const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const newTx: RealTransaction = {
+        ...tx,
+        id: txId,
+        createdByUid: user?.uid,
+        createdByName: user?.displayName || 'Você',
+        createdByPhoto: user?.photoURL || undefined,
+        createdAt: Date.now(),
       };
-    });
-  }, [selectedYear]);
 
-  const updateSalaryStrategy = useCallback((config: Partial<SalaryStrategyConfig>) => {
-    setSalaryStrategy((prev) => ({ ...prev, ...config }));
-  }, []);
+      // Optimistic update
+      setTransactions((prev) => [newTx, ...prev]);
 
-  // Actions for Real Transactions
-  const addTransaction = useCallback((tx: Omit<RealTransaction, 'id' | 'createdAt'>) => {
-    const newTx: RealTransaction = {
-      ...tx,
-      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      createdAt: Date.now(),
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-  }, []);
+      // Cloud Firestore save
+      if (familyId && user) {
+        try {
+          await setDoc(doc(db, 'families', familyId, 'transactions', txId), {
+            ...newTx,
+            familyId,
+          });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.CREATE, `families/${familyId}/transactions/${txId}`);
+        }
+      }
+    },
+    [familyId, user]
+  );
 
-  const updateTransaction = useCallback((updatedTx: RealTransaction) => {
-    setTransactions((prev) => prev.map((t) => (t.id === updatedTx.id ? updatedTx : t)));
-  }, []);
+  const updateTransaction = useCallback(
+    async (updatedTx: RealTransaction) => {
+      setTransactions((prev) => prev.map((t) => (t.id === updatedTx.id ? updatedTx : t)));
 
-  const deleteTransaction = useCallback((id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+      if (familyId && user) {
+        try {
+          await updateDoc(doc(db, 'families', familyId, 'transactions', updatedTx.id), {
+            ...updatedTx,
+            familyId,
+          });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `families/${familyId}/transactions/${updatedTx.id}`);
+        }
+      }
+    },
+    [familyId, user]
+  );
+
+  const deleteTransaction = useCallback(
+    async (id: string) => {
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+
+      if (familyId && user) {
+        try {
+          await deleteDoc(doc(db, 'families', familyId, 'transactions', id));
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `families/${familyId}/transactions/${id}`);
+        }
+      }
+    },
+    [familyId, user]
+  );
 
   // Filter transactions for the selected year
   const currentYearTransactions = useMemo(() => {
@@ -347,8 +615,7 @@ export function useBudgetStore() {
     let currentMonthPaidIncome = 0;
     let currentMonthPaidExpense = 0;
 
-    // Active reference month (e.g. November = index 10)
-    const activeMonthIdx = 10;
+    const activeMonthIdx = 10; // Novembro como referência
 
     currentYearTransactions.forEach((t) => {
       if (t.status === 'paid') {
@@ -387,87 +654,106 @@ export function useBudgetStore() {
   }, [currentYearTransactions, initialAccountBalance]);
 
   // Calculate year end surplus for any year
-  const calculateYearSurplus = useCallback((year: number) => {
-    const plan = yearPlans[year];
-    if (!plan) return 0;
-    let income = 0;
-    let expense = 0;
-    plan.categories.forEach((cat) => {
-      cat.items.forEach((item) => {
-        const itemSum = item.values.reduce((s, v) => s + v, 0);
-        if (cat.type === 'income') income += itemSum;
-        else expense += itemSum;
+  const calculateYearSurplus = useCallback(
+    (year: number) => {
+      const plan = yearPlans[year];
+      if (!plan) return 0;
+      let income = 0;
+      let expense = 0;
+      plan.categories.forEach((cat) => {
+        cat.items.forEach((item) => {
+          const itemSum = item.values.reduce((s, v) => s + v, 0);
+          if (cat.type === 'income') income += itemSum;
+          else expense += itemSum;
+        });
       });
-    });
-    return income - expense;
-  }, [yearPlans]);
+      return income - expense;
+    },
+    [yearPlans]
+  );
 
   // VIRADA DE ANO: Create New Year Budget
-  const createNextYearBudget = useCallback((config: YearRolloverConfig) => {
-    const { sourceYear, newYear, strategy, carryOverBalance, adjustmentPercentage } = config;
-    const sourcePlan = yearPlans[sourceYear] || { categories: INITIAL_CATEGORIES, initialBalance: 0 };
+  const createNextYearBudget = useCallback(
+    (config: YearRolloverConfig) => {
+      const { sourceYear, newYear, strategy, carryOverBalance, adjustmentPercentage } = config;
+      const sourcePlan = yearPlans[sourceYear] || { categories: INITIAL_CATEGORIES, initialBalance: 0 };
 
-    let newCategories: BudgetCategory[] = [];
-    const multiplier = 1 + (Number(adjustmentPercentage) || 0) / 100;
+      let newCategories: BudgetCategory[] = [];
+      const multiplier = 1 + (Number(adjustmentPercentage) || 0) / 100;
 
-    if (strategy === 'copy_structure_and_values') {
-      newCategories = sourcePlan.categories.map((cat) => ({
-        ...cat,
-        items: cat.items.map((item) => ({
-          ...item,
-          values: item.values.map((v) => Math.round(v * multiplier * 100) / 100),
-        })),
-      }));
-    } else if (strategy === 'copy_structure_only') {
-      newCategories = sourcePlan.categories.map((cat) => ({
-        ...cat,
-        items: cat.items.map((item) => ({
-          ...item,
-          values: Array(12).fill(0),
-        })),
-      }));
-    } else {
-      newCategories = INITIAL_CATEGORIES.map((cat) => ({
-        ...cat,
-        items: cat.items.map((item) => ({
-          ...item,
-          values: Array(12).fill(0),
-        })),
-      }));
-    }
+      if (strategy === 'copy_structure_and_values') {
+        newCategories = sourcePlan.categories.map((cat) => ({
+          ...cat,
+          items: cat.items.map((item) => ({
+            ...item,
+            values: item.values.map((v) => Math.round(v * multiplier * 100) / 100),
+          })),
+        }));
+      } else if (strategy === 'copy_structure_only') {
+        newCategories = sourcePlan.categories.map((cat) => ({
+          ...cat,
+          items: cat.items.map((item) => ({
+            ...item,
+            values: Array(12).fill(0),
+          })),
+        }));
+      } else {
+        newCategories = INITIAL_CATEGORIES.map((cat) => ({
+          ...cat,
+          items: cat.items.map((item) => ({
+            ...item,
+            values: Array(12).fill(0),
+          })),
+        }));
+      }
 
-    let newInitialBalance = 0;
-    if (carryOverBalance) {
-      const sourceSurplus = calculateYearSurplus(sourceYear);
-      newInitialBalance = (sourcePlan.initialBalance || 0) + sourceSurplus;
-    }
+      let newInitialBalance = 0;
+      if (carryOverBalance) {
+        const sourceSurplus = calculateYearSurplus(sourceYear);
+        newInitialBalance = (sourcePlan.initialBalance || 0) + sourceSurplus;
+      }
 
-    setYearPlans((prev) => ({
-      ...prev,
-      [newYear]: {
+      const newPlan: YearBudgetPlan = {
         categories: newCategories,
         initialBalance: newInitialBalance,
-      },
-    }));
+      };
 
-    setSelectedYear(newYear);
-  }, [yearPlans, calculateYearSurplus]);
+      setYearPlans((prev) => ({
+        ...prev,
+        [newYear]: newPlan,
+      }));
 
-  const deleteYearPlan = useCallback((year: number) => {
-    if (Object.keys(yearPlans).length <= 1) {
-      alert('Não é possível excluir o único ano existente.');
-      return;
-    }
-    setYearPlans((prev) => {
-      const copy = { ...prev };
-      delete copy[year];
-      return copy;
-    });
-    const remaining = Object.keys(yearPlans).map(Number).filter((y) => y !== year);
-    if (remaining.length > 0) {
-      setSelectedYear(remaining[0]);
-    }
-  }, [yearPlans]);
+      // Sync new year to cloud
+      syncYearPlanToFirestore(newYear, newPlan);
+
+      setSelectedYear(newYear);
+    },
+    [yearPlans, calculateYearSurplus, syncYearPlanToFirestore]
+  );
+
+  const deleteYearPlan = useCallback(
+    (year: number) => {
+      if (Object.keys(yearPlans).length <= 1) {
+        alert('Não é possível excluir o único ano existente.');
+        return;
+      }
+      setYearPlans((prev) => {
+        const copy = { ...prev };
+        delete copy[year];
+        return copy;
+      });
+      if (familyId && user) {
+        deleteDoc(doc(db, 'families', familyId, 'yearPlans', year.toString())).catch((e: unknown) =>
+          console.warn(e)
+        );
+      }
+      const remaining = Object.keys(yearPlans).map(Number).filter((y) => y !== year);
+      if (remaining.length > 0) {
+        setSelectedYear(remaining[0]);
+      }
+    },
+    [yearPlans, familyId, user]
+  );
 
   const resetToOriginalSpreadsheet = useCallback(() => {
     setYearPlans({
@@ -478,7 +764,7 @@ export function useBudgetStore() {
     });
     setSelectedYear(2026);
     setTransactions(INITIAL_TRANSACTIONS);
-    setInitialAccountBalance(1500);
+    setInitialAccountBalanceState(1500);
     try {
       localStorage.removeItem(STORAGE_YEAR_PLANS_KEY);
       localStorage.removeItem(STORAGE_SELECTED_YEAR_KEY);
@@ -512,7 +798,6 @@ export function useBudgetStore() {
       const plannedBalance = plannedIncome - plannedExpense;
       runningPlanned += plannedBalance;
 
-      // Real transactions for this month in the current year
       const monthTransactions = currentYearTransactions.filter((t) => t.month === monthIndex);
       let actualIncome = 0;
       let actualExpense = 0;
@@ -776,5 +1061,6 @@ export function useBudgetStore() {
     resetToOriginalSpreadsheet,
     getComparisonData,
     exportSpreadsheetCSV,
+    isCloudSyncing: isSyncing,
   };
 }

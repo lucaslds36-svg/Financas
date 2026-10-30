@@ -1,0 +1,113 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isFamilyMember(familyId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/families/$(familyId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberUids;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId);
+      allow list: if false; // PII protection, no listing all users
+      allow create: if isSignedIn() && request.auth.uid == userId &&
+        incoming().uid == userId &&
+        incoming().email is string &&
+        incoming().email.size() <= 256;
+      allow update: if isSignedIn() && request.auth.uid == userId &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email;
+      allow delete: if false;
+    }
+
+    // Families Collection
+    match /families/{familyId} {
+      allow get: if isSignedIn() && (
+        (resource != null && request.auth.uid in resource.data.memberUids) ||
+        // Allow read when looking up family by ID or code during join
+        (resource != null && resource.data.code is string)
+      );
+      allow list: if isSignedIn();
+      
+      allow create: if isSignedIn() && isValidId(familyId) &&
+        incoming().id == familyId &&
+        incoming().ownerUid == request.auth.uid &&
+        request.auth.uid in incoming().memberUids &&
+        incoming().memberUids.size() <= 10 &&
+        incoming().name is string && incoming().name.size() <= 128 &&
+        incoming().code is string && incoming().code.size() <= 32;
+
+      // Update: members can update budget settings, or a new spouse can join by appending uid
+      allow update: if isSignedIn() && (
+        // Case 1: Existing member updating settings
+        (request.auth.uid in existing().memberUids &&
+         incoming().id == existing().id &&
+         incoming().ownerUid == existing().ownerUid) ||
+        // Case 2: Spouse joining with invite
+        (incoming().memberUids.size() <= 10 &&
+         incoming().id == existing().id &&
+         incoming().code == existing().code &&
+         incoming().ownerUid == existing().ownerUid &&
+         request.auth.uid in incoming().memberUids)
+      );
+
+      allow delete: if isSignedIn() && request.auth.uid == existing().ownerUid;
+
+      // Subcollection: Year Plans
+      match /yearPlans/{yearId} {
+        allow get, list: if isFamilyMember(familyId);
+        allow create, update: if isFamilyMember(familyId) &&
+          incoming().year is number &&
+          incoming().categories is list;
+        allow delete: if isFamilyMember(familyId);
+      }
+
+      // Subcollection: Settings
+      match /settings/{settingId} {
+        allow get, list: if isFamilyMember(familyId);
+        allow create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyMember(familyId);
+      }
+
+      // Subcollection: Transactions
+      match /transactions/{transactionId} {
+        allow get, list: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId) && isValidId(transactionId) &&
+          incoming().id == transactionId &&
+          incoming().familyId == familyId &&
+          incoming().amount is number &&
+          incoming().date is string &&
+          incoming().month is number &&
+          incoming().status in ['paid', 'pending'] &&
+          incoming().type in ['income', 'expense'];
+        allow update: if isFamilyMember(familyId) &&
+          incoming().id == existing().id &&
+          incoming().familyId == existing().familyId;
+        allow delete: if isFamilyMember(familyId);
+      }
+    }
+  }
+}
