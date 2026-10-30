@@ -167,6 +167,10 @@ function BudgetAppContent() {
             salaryStrategy={salaryStrategy}
             onUpdateStrategy={updateSalaryStrategy}
             categories={categories}
+            selectedYear={selectedYear}
+            realCashPosition={realCashPosition}
+            onAddTransaction={addTransaction}
+            onNavigateTab={setActiveTab}
           />
         )}
       </main>

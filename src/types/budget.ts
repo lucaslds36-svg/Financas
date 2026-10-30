@@ -119,6 +119,17 @@ export interface SalaryStrategyConfig {
   paymentDay: number; // ex: 5
   singlePaymentDay: number; // ex: 5
   monthlyNetSalary: number; // Salário líquido do mês
+  customValeAmount?: number; // Valor específico do vale em R$
+  customPaymentAmount?: number; // Valor específico do pagamento em R$
+  valeDate?: string; // Data específica (ex: '2026-11-20' ou dia)
+  paymentDate?: string; // Data específica (ex: '2026-11-05' ou dia)
+  valeReceived?: boolean; // Se o vale já caiu na conta
+  paymentReceived?: boolean; // Se o pagamento já caiu na conta
+  actualValeReceivedAmount?: number; // Quantia real que caiu
+  actualPaymentReceivedAmount?: number; // Quantia real que caiu
+  singlePaymentDate?: string;
+  singlePaymentReceived?: boolean;
+  actualSinglePaymentReceivedAmount?: number;
 }
 
 export interface RealCashPosition {
