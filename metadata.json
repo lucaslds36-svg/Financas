@@ -1,0 +1,8 @@
+{
+  "name": "Orçamento Família - Planejamento Financeiro",
+  "description": "Planejamento financeiro familiar anual com controle de receitas, despesas categorizadas, lançamentos reais, comparativo orçado vs realizado e análise de evolução financeira.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,131 @@
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,RECEITA,JAN,FEV,MAR,ABR,MAIO,JUN,JUL,AGO,SET,OUT,NOV,DEZ,ANO,
+,,RENDA,,,,,,,,,,,,,, 
+,,RENDA,Jan,Fev,Março,Abr,Maio,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Salários,"R$ 6.000,00","R$ 6.000,00","R$ 6.000,00","R$ 6.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 96.000,00",
+,,Juros/dividendos,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Diversos,,,,,,,,,,,"R$ 4.000,00","R$ 2.000,00","R$ 6.000,00",
+,,Total,"R$ 6.000,00","R$ 6.000,00","R$ 6.000,00","R$ 6.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 9.000,00","R$ 13.000,00","R$ 11.000,00","R$ 102.000,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,DESPESAS,JAN,FEV,MAR,ABR,MAIO,JUN,JUL,AGO,SET,OUT,NOV,DEZ,ANO,
+,,CASA,,,,,,,,,,,,,,
+,,Casa,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Hipoteca,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Viagem,,,,,,,,,,,"R$ 420,00","R$ 420,00","R$ 840,00",
+,,Reparos,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Serviços,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Serviços Públicos,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 420,00","R$ 420,00","R$ 840,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,COTIDIANO,,,,,,,,,,,,,,
+,,Cotidiano,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Supermercado ,,,,,,,,,,,"R$ 1.500,00","R$ 1.500,00","R$ 3.000,00",
+,,Creche,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Lavagem a seco,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Jantar fora,,,,,,,,,,,"R$ 700,00","R$ 700,00","R$ 1.400,00",
+,,Serviço de limpeza doméstica,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Passeador de cães,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 2.200,00","R$ 2.200,00","R$ 4.400,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,TRANSPORTE,,,,,,,,,,,,,,
+,,Transporte,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Combustível,,,,,,,,,,,"R$ 600,00","R$ 600,00","R$ 1.200,00",
+,,Seguro,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Reparos,,,,,,,,,,"R$ 530,00",,,"R$ 530,00",#N/A
+,,Lavagem do carro,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Estacionamento,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Transporte público,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 530,00","R$ 600,00","R$ 600,00","R$ 1.730,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,ENTRETENIMENTO,,,,,,,,,,,,,,
+,,Entretenimento,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,TV a cabo,,,,,,,,,,,"R$ 50,00","R$ 50,00","R$ 100,00",
+,,Locações de vídeo/DVD,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Cinema/teatro,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Shows/clubes,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 50,00","R$ 50,00","R$ 100,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,SAÚDE,,,,,,,,,,,,,,
+,,Saúde,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Mensalidade da academia,,,,,,,,,,,"R$ 120,00","R$ 120,00","R$ 240,00",
+,,Seguro,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Medicamentos com prescrição,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Medicamentos sem prescrição,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Coparticipação/particular,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Veterinário/medicamentos para animais de estimação,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Seguro de vida,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 120,00","R$ 120,00","R$ 240,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,FÉRIAS,,,,,,,,,,,,,,
+,,Férias,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Passagens de avião,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Acomodações,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Alimentação,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Souvenirs,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Taxas para transporte de animais de estimação,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Aluguel de carro,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,LAZER,,,,,,,,,,,,,,
+,,Lazer,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Taxas da academia,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Equipamentos de esportes,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Mensalidade de sócio da equipe,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Brinquedos,"R$ 39,00",,"R$ 40,00",,,,,,,,,,"R$ 79,00",
+,,Total,"R$ 39,00","R$ 0,00","R$ 40,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 79,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,MENSALIDADES/ASSINATURAS,,,,,,,,,,,,,,
+,,Mensalidades/assinaturas,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Revistas,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Jornais,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Internet,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Rádio aberta,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,TV aberta,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Organizações religiosas,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Donativo,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,PESSOAL,,,,,,,,,,,,,,
+,,Pessoal,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Vestuário,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Presentes,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Salão/barbeiro,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Livros,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,"Música (CDs, etc.)",,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,OBRIGAÇÕES FINANCEIRAS,,,,,,,,,,,,,,
+,,Obrigações financeiras,Jan,Fev,Março,Abr,Mai,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,Economias de longo prazo,,,,,,,,,,,"R$ 2.000,00","R$ 2.000,00","R$ 4.000,00",
+,,Aposentadoria,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Pagamentos do cartão de crédito,"R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 18.000,00",
+,,Imposto de renda (adicional),,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Outras obrigações,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 3.500,00","R$ 3.500,00","R$ 22.000,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,PAGAMENTOS DIVERSOS,,,,,,,,,,,,,,
+,,Pagamentos diversos,Jan,Fev,Março,Abr,Maio,Jun,Julho,Ago,Set,Out,Nov,Dez,Ano,Coluna1
+,,   Outros,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,   Outros,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,   Outros,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,   Outros,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,   Outros,,,,,,,,,,,,,"R$ 0,00",#N/A
+,,Total,"R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00","R$ 0,00",
+,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+,,TOTAIS,JAN,FEV,MAR,ABR,MAIO,JUN,JUL,AGO,SET,OUT,NOV,DEZ,ANO, 
+,,Despesas totais,"R$ 1.539,00","R$ 1.500,00","R$ 1.540,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 1.500,00","R$ 2.030,00","R$ 6.890,00","R$ 6.890,00","R$ 29.389,00",
+,,Diferença de caixa,"R$ 4.461,00","R$ 4.500,00","R$ 4.460,00","R$ 4.500,00","R$ 7.500,00","R$ 7.500,00","R$ 7.500,00","R$ 7.500,00","R$ 7.500,00","R$ 6.970,00","R$ 6.110,00","R$ 4.110,00","R$ 72.611,00",
