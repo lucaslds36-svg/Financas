@@ -112,6 +112,7 @@ function BudgetAppContent() {
             annualSummary={annualSummary}
             monthlySummaries={monthlySummaries}
             recentTransactions={transactions}
+            categories={categories}
             onNavigateTab={setActiveTab}
             onOpenNewTransaction={handleOpenNewTransaction}
             onOpenFamilySync={() => setIsFamilySyncOpen(true)}
