@@ -9,18 +9,33 @@ export const INITIAL_CATEGORIES: BudgetCategory[] = [
     items: [
       {
         id: 'item_salarios',
-        name: 'Salários',
-        values: [6000, 6000, 6000, 6000, 9000, 9000, 9000, 9000, 9000, 9000, 9000, 9000],
+        name: 'Salário Principal',
+        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        id: 'item_vale',
+        name: 'Vale / Adiantamento',
+        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        id: 'item_hora_extra',
+        name: 'Horas Extras',
+        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      },
+      {
+        id: 'item_servicos_fora',
+        name: 'Serviços por Fora (Bicos)',
+        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       },
       {
         id: 'item_juros_div',
-        name: 'Juros/dividendos',
+        name: 'Rendimentos / Investimentos',
         values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       },
       {
         id: 'item_diversos',
-        name: 'Diversos',
-        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4000, 2000],
+        name: 'Outras Rendas',
+        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       },
     ],
   },

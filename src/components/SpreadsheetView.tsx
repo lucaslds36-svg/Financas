@@ -48,7 +48,9 @@ export const SpreadsheetView: React.FC<SpreadsheetViewProps> = ({
   onOpenAddItem,
   onRemoveCategory,
 }) => {
-  const [displayMode, setDisplayMode] = useState<'mobile_month' | 'table'>('mobile_month');
+  const [displayMode, setDisplayMode] = useState<'mobile_month' | 'table'>(() => {
+    return typeof window !== 'undefined' && window.innerWidth >= 768 ? 'table' : 'mobile_month';
+  });
   const [mobileSelectedMonth, setMobileSelectedMonth] = useState<MonthIndex>(10); // Default to Novembro (10)
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');

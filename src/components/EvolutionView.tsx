@@ -1,14 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   TrendingUp, 
-  PiggyBank, 
+  Calendar, 
   ArrowUpRight, 
-  Calendar,
-  Layers,
-  Sparkles,
-  ShieldCheck
+  ArrowDownRight, 
+  Wallet, 
+  ShoppingCart, 
+  PieChart as PieIcon, 
+  BarChart3, 
+  Activity, 
+  Layers, 
+  Users,
+  ChevronRight,
+  Info
 } from 'lucide-react';
-import { MonthSummary, BudgetCategory } from '../types/budget';
+import { MonthSummary, BudgetCategory, RealTransaction, MonthIndex, MONTH_NAMES, MONTH_FULL_NAMES } from '../types/budget';
 import { formatCurrency, formatPercent } from '../utils/formatters';
 
 interface EvolutionViewProps {
@@ -20,7 +26,11 @@ interface EvolutionViewProps {
     totalPlannedExpense: number;
     totalPlannedBalance: number;
     savingsRate: number;
+    totalActualIncome?: number;
+    totalActualExpense?: number;
+    totalActualBalance?: number;
   };
+  transactions?: RealTransaction[];
 }
 
 export const EvolutionView: React.FC<EvolutionViewProps> = ({
@@ -28,316 +38,789 @@ export const EvolutionView: React.FC<EvolutionViewProps> = ({
   monthlySummaries,
   categories,
   annualSummary,
+  transactions = [],
 }) => {
-  const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
+  const currentMonthIdx = new Date().getMonth() as MonthIndex;
+  const [viewScope, setViewScope] = useState<'month' | 'year'>('month');
+  const [activeMonth, setActiveMonth] = useState<MonthIndex>(currentMonthIdx);
+  const [hoveredDay, setHoveredDay] = useState<number | null>(null);
 
-  // Maximum value for scaling bar charts
-  const maxMonthlyValue = Math.max(
-    ...monthlySummaries.map((m) => Math.max(m.plannedIncome, m.plannedExpense, m.plannedBalance)),
-    1000
+  // Filter transactions for the selected active month
+  const activeMonthTransactions = useMemo(() => {
+    return transactions.filter((t) => t.month === activeMonth);
+  }, [transactions, activeMonth]);
+
+  // Days in selected month
+  const daysInMonth = useMemo(() => {
+    // 0 is last day of previous month, month is 1-indexed in Date constructor
+    return new Date(selectedYear, activeMonth + 1, 0).getDate();
+  }, [selectedYear, activeMonth]);
+
+  // Calculate day-by-day spending and cumulative spending in the active month
+  const dailyBreakdown = useMemo(() => {
+    const days: {
+      day: number;
+      expenseAmount: number;
+      incomeAmount: number;
+      cumulativeExpense: number;
+      items: RealTransaction[];
+    }[] = [];
+
+    let runningExpense = 0;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayStr = d.toString().padStart(2, '0');
+      const dayTxs = activeMonthTransactions.filter((t) => {
+        const txDay = parseInt(t.date.slice(8, 10), 10);
+        return txDay === d;
+      });
+
+      const dayExpense = dayTxs
+        .filter((t) => t.type === 'expense')
+        .reduce((s, t) => s + t.amount, 0);
+
+      const dayIncome = dayTxs
+        .filter((t) => t.type === 'income')
+        .reduce((s, t) => s + t.amount, 0);
+
+      runningExpense += dayExpense;
+
+      days.push({
+        day: d,
+        expenseAmount: dayExpense,
+        incomeAmount: dayIncome,
+        cumulativeExpense: runningExpense,
+        items: dayTxs,
+      });
+    }
+
+    return days;
+  }, [activeMonthTransactions, daysInMonth]);
+
+  // Month stats
+  const monthSummary = monthlySummaries[activeMonth];
+  const monthTotalActualExpense = activeMonthTransactions
+    .filter((t) => t.type === 'expense')
+    .reduce((s, t) => s + t.amount, 0);
+  const monthTotalActualIncome = activeMonthTransactions
+    .filter((t) => t.type === 'income')
+    .reduce((s, t) => s + t.amount, 0);
+
+  // Budget planned for this month (or from planned summary)
+  const monthPlannedExpense = monthSummary?.plannedExpense || 0;
+  const monthPlannedIncome = monthSummary?.plannedIncome || 0;
+
+  // Average daily expense
+  const today = new Date();
+  const isCurrentMonth = today.getMonth() === activeMonth && today.getFullYear() === selectedYear;
+  const elapsedDays = isCurrentMonth ? Math.max(1, today.getDate()) : daysInMonth;
+  const avgDailyExpense = monthTotalActualExpense / elapsedDays;
+  const projectedMonthEndExpense = avgDailyExpense * daysInMonth;
+
+  // Highest spending day in month
+  const peakDay = useMemo(() => {
+    return [...dailyBreakdown].sort((a, b) => b.expenseAmount - a.expenseAmount)[0];
+  }, [dailyBreakdown]);
+
+  // Max cumulative for SVG scaling
+  const maxCumulativeValue = Math.max(
+    monthPlannedExpense || 1000,
+    dailyBreakdown[dailyBreakdown.length - 1]?.cumulativeExpense || 1000,
+    100
   );
 
-  // Cumulative balance max
-  const maxCumulative = Math.max(
-    ...monthlySummaries.map((m) => m.cumulativePlannedBalance),
-    1000
-  );
+  // Max single day expense for bar scaling
+  const maxDayExpense = Math.max(...dailyBreakdown.map((d) => d.expenseAmount), 100);
 
-  // Category Annual Breakdown
-  const expenseCategories = categories.filter((c) => c.type === 'expense');
-  const categoryTotals = expenseCategories.map((cat) => {
-    const total = cat.items.reduce(
-      (sum, item) => sum + item.values.reduce((s, v) => s + v, 0),
-      0
-    );
-    const percent = annualSummary.totalPlannedExpense > 0
-      ? (total / annualSummary.totalPlannedExpense) * 100
-      : 0;
+  // Category breakdown for active month
+  const monthCategoryBreakdown = useMemo(() => {
+    const map = new Map<string, { name: string; amount: number; count: number }>();
+    activeMonthTransactions
+      .filter((t) => t.type === 'expense')
+      .forEach((t) => {
+        const cat = t.categoryName || 'Diversos';
+        const curr = map.get(cat) || { name: cat, amount: 0, count: 0 };
+        curr.amount += t.amount;
+        curr.count += 1;
+        map.set(cat, curr);
+      });
+
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+  }, [activeMonthTransactions]);
+
+  // Couple breakdown for active month (Lucas vs Esposa)
+  const coupleMonthBreakdown = useMemo(() => {
+    let lucasTotal = 0;
+    let esposaTotal = 0;
+    let casalTotal = 0;
+
+    activeMonthTransactions
+      .filter((t) => t.type === 'expense')
+      .forEach((t) => {
+        const name = (t.createdByName || '').toLowerCase();
+        if (name.includes('esposa')) {
+          esposaTotal += t.amount;
+        } else if (name.includes('casal')) {
+          casalTotal += t.amount;
+        } else {
+          lucasTotal += t.amount;
+        }
+      });
+
     return {
-      id: cat.id,
-      name: cat.name,
-      total,
-      percent,
+      lucasTotal,
+      esposaTotal,
+      casalTotal,
+      total: lucasTotal + esposaTotal + casalTotal || 1,
     };
-  }).sort((a, b) => b.total - a.total);
+  }, [activeMonthTransactions]);
 
-  // Top month stats
-  const highestExpenseMonth = [...monthlySummaries].sort(
-    (a, b) => b.plannedExpense - a.plannedExpense
-  )[0];
-  const highestIncomeMonth = [...monthlySummaries].sort(
-    (a, b) => b.plannedIncome - a.plannedIncome
-  )[0];
-  const highestSurplusMonth = [...monthlySummaries].sort(
-    (a, b) => b.plannedBalance - a.plannedBalance
-  )[0];
+  // Yearly max for scaling 12 months chart
+  const maxYearlyValue = Math.max(
+    ...monthlySummaries.map((m) => Math.max(m.plannedIncome, m.plannedExpense, m.actualIncome || 0, m.actualExpense || 0)),
+    1000
+  );
 
   return (
-    <div className="space-y-8">
-      {/* Overview Highlights */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs">
-          <span className="text-xs font-medium text-neutral-500">Saldo Acumulado no Fim do Ano</span>
-          <div className="text-xl font-bold font-mono tabular-nums text-emerald-700 mt-1">
-            {formatCurrency(annualSummary.totalPlannedBalance)}
+    <div className="space-y-6">
+      
+      {/* Top Header Card */}
+      <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
+                Relatórios Financeiros
+              </span>
+              <span className="text-xs text-neutral-400">·</span>
+              <span className="text-xs font-semibold text-neutral-700">
+                Evolução Detalhada
+              </span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-bold text-neutral-900 mt-1">
+              Acompanhamento de Gastos e Renda
+            </h2>
           </div>
-          <div className="mt-2 text-xs text-neutral-500 flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Patrimônio financeiro livre projetado</span>
+
+          {/* Scope Switcher: No Mês vs No Ano */}
+          <div className="flex p-1 bg-neutral-100 rounded-xl self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewScope('month')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                viewScope === 'month'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              Evolução Dentro do Mês (Dia a Dia)
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewScope('year')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                viewScope === 'year'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              Evolução no Ano (12 Meses)
+            </button>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs">
-          <span className="text-xs font-medium text-neutral-500">Taxa Média de Poupança</span>
-          <div className="text-xl font-bold font-mono tabular-nums text-indigo-700 mt-1">
-            {formatPercent(annualSummary.savingsRate)}
-          </div>
-          <div className="mt-2 text-xs text-neutral-500 flex items-center gap-1">
-            <PiggyBank className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Retenção de capital sobre receitas</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs">
-          <span className="text-xs font-medium text-neutral-500">Mês com Maior Superávit</span>
-          <div className="text-xl font-bold font-mono tabular-nums text-neutral-900 mt-1">
-            {highestSurplusMonth.monthName} ({formatCurrency(highestSurplusMonth.plannedBalance)})
-          </div>
-          <p className="mt-2 text-xs text-neutral-500">
-            Pico de retenção de caixa líquido
-          </p>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs">
-          <span className="text-xs font-medium text-neutral-500">Pico de Despesas do Ano</span>
-          <div className="text-xl font-bold font-mono tabular-nums text-rose-700 mt-1">
-            {highestExpenseMonth.monthName} ({formatCurrency(highestExpenseMonth.plannedExpense)})
-          </div>
-          <p className="mt-2 text-xs text-neutral-500">
-            Concentração de pagamentos e viagens
-          </p>
+        {/* Month Selector Strip */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-3">
+          <span className="text-xs font-semibold text-neutral-500 mr-1 shrink-0">
+            {viewScope === 'month' ? 'Mês em Análise:' : 'Filtro de Destaque:'}
+          </span>
+          {MONTH_NAMES.map((name, idx) => {
+            const isSelected = activeMonth === idx;
+            const isCurrent = idx === new Date().getMonth();
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setActiveMonth(idx as MonthIndex)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 flex items-center gap-1 ${
+                  isSelected
+                    ? 'bg-emerald-700 text-white'
+                    : isCurrent
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-neutral-100 text-neutral-600 hover:text-neutral-900'
+                }`}
+              >
+                <span>{MONTH_FULL_NAMES[idx]}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Chart 1: Evolução Mês a Mês (Receita vs Despesas vs Saldo) */}
-      <div className="bg-white p-6 rounded-xl border border-neutral-200 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h3 className="text-sm font-bold text-neutral-900">
-              Evolução Mensal do Fluxo de Caixa (12 Meses)
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Comparação mensal entre Receita, Despesas e Saldo Líquido
-            </p>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-medium">
-            <span className="flex items-center gap-1.5 text-emerald-700">
-              <span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" />
-              Receita
-            </span>
-            <span className="flex items-center gap-1.5 text-rose-700">
-              <span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" />
-              Despesas
-            </span>
-            <span className="flex items-center gap-1.5 text-indigo-700">
-              <span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" />
-              Saldo Líquido
-            </span>
-          </div>
-        </div>
+      {/* ========================================================================= */}
+      {/* SCOPE 1: EVOLUÇÃO DENTRO DO MÊS (DIA A DIA)                               */}
+      {/* ========================================================================= */}
+      {viewScope === 'month' && (
+        <div className="space-y-6">
+          
+          {/* Month KPI Metric Cards (Single-elevation, clean tabular numbers) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            
+            <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-2xs">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 block">
+                Total Gasto em {MONTH_FULL_NAMES[activeMonth]}
+              </span>
+              <div className="text-2xl font-bold font-mono tabular-nums text-neutral-900 mt-1">
+                {formatCurrency(monthTotalActualExpense)}
+              </div>
+              <div className="mt-1 text-[11px] text-neutral-500">
+                {activeMonthTransactions.filter((t) => t.type === 'expense').length} compras realizadas
+              </div>
+            </div>
 
-        {/* SVG Grouped Bar Chart */}
-        <div className="relative pt-4 pb-2">
-          <div className="h-64 flex items-end justify-between gap-2 border-b border-neutral-200 px-2">
-            {monthlySummaries.map((m, idx) => {
-              const incomeHeight = (m.plannedIncome / maxMonthlyValue) * 100;
-              const expenseHeight = (m.plannedExpense / maxMonthlyValue) * 100;
-              const balanceHeight = (Math.max(0, m.plannedBalance) / maxMonthlyValue) * 100;
-              const isHovered = hoveredMonth === idx;
+            <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-2xs">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 block">
+                Total Recebido (Salário/Extras)
+              </span>
+              <div className="text-2xl font-bold font-mono tabular-nums text-emerald-700 mt-1">
+                +{formatCurrency(monthTotalActualIncome)}
+              </div>
+              <div className="mt-1 text-[11px] text-neutral-500">
+                Sobra no mês:{' '}
+                <strong className={monthTotalActualIncome >= monthTotalActualExpense ? 'text-emerald-700 font-mono' : 'text-rose-600 font-mono'}>
+                  {formatCurrency(monthTotalActualIncome - monthTotalActualExpense)}
+                </strong>
+              </div>
+            </div>
 
-              return (
-                <div
-                  key={m.monthIndex}
-                  onMouseEnter={() => setHoveredMonth(idx)}
-                  onMouseLeave={() => setHoveredMonth(null)}
-                  className="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer"
+            <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-2xs">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 block">
+                Média Diária de Gastos
+              </span>
+              <div className="text-2xl font-bold font-mono tabular-nums text-neutral-900 mt-1">
+                {formatCurrency(avgDailyExpense)}
+                <span className="text-xs font-normal text-neutral-400">/dia</span>
+              </div>
+              <div className="mt-1 text-[11px] text-neutral-500">
+                Baseado em {elapsedDays} dias decorridos
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-2xs">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 block">
+                Pico Máximo de Gasto
+              </span>
+              <div className="text-2xl font-bold font-mono tabular-nums text-neutral-900 mt-1">
+                {peakDay && peakDay.expenseAmount > 0 ? formatCurrency(peakDay.expenseAmount) : 'R$ 0,00'}
+              </div>
+              <div className="mt-1 text-[11px] text-neutral-500">
+                {peakDay && peakDay.expenseAmount > 0 ? `Ocorrido no dia ${peakDay.day}` : 'Sem gastos registrados'}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Gráfico 1: Curva de Evolução Acumulada no Mês (Burn-up) */}
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-100">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-600" />
+                  <span>Curva de Gastos Acumulados no Mês (Dia 1 ao Dia {daysInMonth})</span>
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Veja a velocidade com que seu dinheiro é gasto dia a dia durante o mês
+                </p>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-emerald-600" />
+                  <span className="text-neutral-600">Gasto Acumulado Real</span>
+                </div>
+                {monthPlannedExpense > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-4 h-0.5 border-t-2 border-dashed border-neutral-400" />
+                    <span className="text-neutral-500">Teto Planejado ({formatCurrency(monthPlannedExpense)})</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SVG Interactive Line Chart */}
+            <div className="relative pt-2">
+              <div className="w-full h-56 sm:h-64">
+                <svg
+                  viewBox={`0 0 ${daysInMonth * 20} 180`}
+                  className="w-full h-full overflow-visible"
+                  preserveAspectRatio="none"
                 >
-                  {/* Tooltip on hover */}
-                  {isHovered && (
-                    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-neutral-900 text-white p-2.5 rounded-lg shadow-lg text-[11px] whitespace-nowrap z-30 pointer-events-none">
-                      <div className="font-bold border-b border-neutral-700 pb-1 mb-1 text-neutral-200">
-                        {m.monthName}
-                      </div>
-                      <div className="flex justify-between gap-3 text-emerald-400">
-                        <span>Receita:</span>
-                        <span className="font-mono tabular-nums">{formatCurrency(m.plannedIncome)}</span>
-                      </div>
-                      <div className="flex justify-between gap-3 text-rose-400">
-                        <span>Despesas:</span>
-                        <span className="font-mono tabular-nums">{formatCurrency(m.plannedExpense)}</span>
-                      </div>
-                      <div className="flex justify-between gap-3 text-indigo-300 font-semibold pt-1 border-t border-neutral-800">
-                        <span>Saldo:</span>
-                        <span className="font-mono tabular-nums">{formatCurrency(m.plannedBalance)}</span>
-                      </div>
-                    </div>
+                  <defs>
+                    <linearGradient id="monthGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#059669" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#059669" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal grid lines */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
+                    const y = 160 - pct * 140;
+                    return (
+                      <line
+                        key={pct}
+                        x1="0"
+                        y1={y}
+                        x2={daysInMonth * 20}
+                        y2={y}
+                        stroke="#f1f5f9"
+                        strokeWidth="1"
+                      />
+                    );
+                  })}
+
+                  {/* Planned budget ceiling line */}
+                  {monthPlannedExpense > 0 && (
+                    <line
+                      x1="0"
+                      y1={Math.max(10, 160 - (monthPlannedExpense / maxCumulativeValue) * 140)}
+                      x2={daysInMonth * 20}
+                      y2={Math.max(10, 160 - (monthPlannedExpense / maxCumulativeValue) * 140)}
+                      stroke="#94a3b8"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                    />
                   )}
 
-                  {/* Bars group */}
-                  <div className="w-full flex items-end justify-center gap-1 h-full">
-                    <div
-                      className={`w-1/3 rounded-t-sm transition-all duration-200 ${
-                        isHovered ? 'bg-emerald-600' : 'bg-emerald-500/90'
-                      }`}
-                      style={{ height: `${Math.max(4, incomeHeight)}%` }}
-                    />
-                    <div
-                      className={`w-1/3 rounded-t-sm transition-all duration-200 ${
-                        isHovered ? 'bg-rose-600' : 'bg-rose-500/90'
-                      }`}
-                      style={{ height: `${Math.max(4, expenseHeight)}%` }}
-                    />
-                    <div
-                      className={`w-1/3 rounded-t-sm transition-all duration-200 ${
-                        isHovered ? 'bg-indigo-600' : 'bg-indigo-500/90'
-                      }`}
-                      style={{ height: `${Math.max(4, balanceHeight)}%` }}
-                    />
-                  </div>
+                  {/* Area fill */}
+                  <polygon
+                    fill="url(#monthGradient)"
+                    points={`
+                      0,160 
+                      ${dailyBreakdown
+                        .map((d, i) => {
+                          const x = i * 20 + 10;
+                          const y = 160 - (d.cumulativeExpense / maxCumulativeValue) * 140;
+                          return `${x},${y}`;
+                        })
+                        .join(' ')} 
+                      ${(daysInMonth - 1) * 20 + 10},160
+                    `}
+                  />
 
-                  <span className="text-[11px] font-medium text-neutral-500 mt-2">
-                    {m.monthName}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Chart 2: Curva de Acúmulo de Patrimônio (Saldo Acumulado) */}
-      <div className="bg-white p-6 rounded-xl border border-neutral-200 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h3 className="text-sm font-bold text-neutral-900">
-              Evolução do Saldo Acumulado (Curva de Patrimônio Líquido)
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Crescimento do caixa ao longo dos 12 meses acumulando a sobra mensal
-            </p>
-          </div>
-          <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
-            Final do Ano: {formatCurrency(annualSummary.totalPlannedBalance)}
-          </div>
-        </div>
-
-        {/* Visual Growth SVG Area/Line Chart */}
-        <div className="h-56 w-full relative">
-          <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 200" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="wealthGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
-
-            {/* Grid horizontal lines */}
-            <line x1="0" y1="50" x2="1000" y2="50" stroke="#f1f5f9" strokeWidth="1" />
-            <line x1="0" y1="100" x2="1000" y2="100" stroke="#f1f5f9" strokeWidth="1" />
-            <line x1="0" y1="150" x2="1000" y2="150" stroke="#f1f5f9" strokeWidth="1" />
-
-            {/* SVG Area */}
-            {(() => {
-              const points = monthlySummaries.map((m, i) => {
-                const x = (i / 11) * 980 + 10;
-                const y = 190 - (m.cumulativePlannedBalance / maxCumulative) * 170;
-                return `${x},${y}`;
-              });
-              const areaPath = `M 10,190 L ${points.join(' L ')} L 990,190 Z`;
-              const linePath = `M ${points.join(' L ')}`;
-
-              return (
-                <>
-                  <path d={areaPath} fill="url(#wealthGradient)" />
-                  <path
-                    d={linePath}
+                  {/* Primary cumulative line */}
+                  <polyline
                     fill="none"
                     stroke="#059669"
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    points={dailyBreakdown
+                      .map((d, i) => {
+                        const x = i * 20 + 10;
+                        const y = 160 - (d.cumulativeExpense / maxCumulativeValue) * 140;
+                        return `${x},${y}`;
+                      })
+                      .join(' ')}
                   />
-                  {monthlySummaries.map((m, i) => {
-                    const x = (i / 11) * 980 + 10;
-                    const y = 190 - (m.cumulativePlannedBalance / maxCumulative) * 170;
+
+                  {/* Day Points */}
+                  {dailyBreakdown.map((d, i) => {
+                    const x = i * 20 + 10;
+                    const y = 160 - (d.cumulativeExpense / maxCumulativeValue) * 140;
+                    const isHovered = hoveredDay === d.day;
+                    const hasSpike = d.expenseAmount > 0;
+
                     return (
-                      <circle
-                        key={i}
-                        cx={x}
-                        cy={y}
-                        r="5"
-                        fill="#ffffff"
-                        stroke="#059669"
-                        strokeWidth="2.5"
-                      />
+                      <g key={d.day}>
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={isHovered ? 6 : hasSpike ? 3.5 : 2}
+                          fill={isHovered ? '#047857' : hasSpike ? '#059669' : '#a7f3d0'}
+                          stroke="#ffffff"
+                          strokeWidth="1.5"
+                          className="cursor-pointer transition-all"
+                          onMouseEnter={() => setHoveredDay(d.day)}
+                          onMouseLeave={() => setHoveredDay(null)}
+                        />
+                      </g>
                     );
                   })}
-                </>
-              );
-            })()}
-          </svg>
-
-          {/* Month labels below SVG */}
-          <div className="flex justify-between items-center text-[11px] text-neutral-500 font-medium pt-3">
-            {monthlySummaries.map((m) => (
-              <span key={m.monthIndex} className="text-center w-8">
-                {m.monthName}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Breakdown by Category: Table + Percent Bars */}
-      <div className="bg-white p-6 rounded-xl border border-neutral-200 shadow-xs">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-neutral-900">
-              Distribuição Anual de Despesas por Categoria
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Onde o dinheiro da família está concentrado ao longo de todo o ano
-            </p>
-          </div>
-          <span className="text-xs font-mono font-bold text-neutral-900">
-            Total Anual: {formatCurrency(annualSummary.totalPlannedExpense)}
-          </span>
-        </div>
-
-        <div className="space-y-3 pt-2">
-          {categoryTotals.map((cat) => (
-            <div key={cat.id} className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-neutral-800">{cat.name}</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono tabular-nums text-neutral-600">
-                    {formatCurrency(cat.total)}
-                  </span>
-                  <span className="font-mono tabular-nums font-semibold text-neutral-900 w-12 text-right">
-                    {formatPercent(cat.percent)}
-                  </span>
-                </div>
+                </svg>
               </div>
-              <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, cat.percent)}%` }}
-                />
+
+              {/* Day numbers labels along bottom */}
+              <div className="flex justify-between text-[10px] font-mono text-neutral-400 pt-2 border-t border-neutral-100">
+                <span>Dia 01</span>
+                <span>Dia 05</span>
+                <span>Dia 10</span>
+                <span>Dia 15</span>
+                <span>Dia 20</span>
+                <span>Dia 25</span>
+                <span>Dia {daysInMonth}</span>
+              </div>
+
+              {/* Tooltip Card if day hovered */}
+              {hoveredDay !== null && (
+                <div className="mt-3 p-3 bg-neutral-900 text-white rounded-xl text-xs flex items-center justify-between gap-4 animate-in fade-in duration-100">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-emerald-400" />
+                    <span>
+                      Dia <strong>{hoveredDay} de {MONTH_FULL_NAMES[activeMonth]}</strong>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 font-mono">
+                    <span>
+                      Gasto no dia:{' '}
+                      <strong className="text-emerald-400">
+                        {formatCurrency(dailyBreakdown[hoveredDay - 1]?.expenseAmount || 0)}
+                      </strong>
+                    </span>
+                    <span>
+                      Acumulado até aqui:{' '}
+                      <strong>
+                        {formatCurrency(dailyBreakdown[hoveredDay - 1]?.cumulativeExpense || 0)}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Gráfico 2: Histograma de Barras Diárias (Onde ocorreram os gastos) */}
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-neutral-700" />
+                  <span>Gastos Diários Individuais (Picos de Compras)</span>
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Veja exatamente em quais dias do mês o dinheiro saiu da sua conta
+                </p>
+              </div>
+              <span className="text-xs font-mono text-neutral-400">
+                Máximo diário: {formatCurrency(maxDayExpense)}
+              </span>
+            </div>
+
+            {/* Daily Bars */}
+            <div className="h-32 flex items-end gap-1 sm:gap-1.5 pt-4 pb-1 overflow-x-auto">
+              {dailyBreakdown.map((d) => {
+                const heightPct = maxDayExpense > 0 ? (d.expenseAmount / maxDayExpense) * 100 : 0;
+                const isPeak = d.expenseAmount === peakDay?.expenseAmount && d.expenseAmount > 0;
+                return (
+                  <div
+                    key={d.day}
+                    className="flex-1 flex flex-col items-center gap-1 min-w-[8px] sm:min-w-[12px] group relative cursor-pointer"
+                    onMouseEnter={() => setHoveredDay(d.day)}
+                    onMouseLeave={() => setHoveredDay(null)}
+                  >
+                    {/* Tooltip on hover */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full mb-1 z-20 pointer-events-none bg-neutral-900 text-white text-[10px] font-mono py-1 px-1.5 rounded whitespace-nowrap shadow-md">
+                      Dia {d.day}: {formatCurrency(d.expenseAmount)}
+                    </div>
+
+                    <div
+                      className={`w-full rounded-t-xs transition-all ${
+                        isPeak
+                          ? 'bg-rose-500'
+                          : d.expenseAmount > 0
+                          ? 'bg-neutral-800 hover:bg-emerald-600'
+                          : 'bg-neutral-200/50'
+                      }`}
+                      style={{ height: `${Math.max(4, heightPct)}%` }}
+                    />
+                    <span className="text-[9px] font-mono text-neutral-400 group-hover:text-neutral-900">
+                      {d.day}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Gráfico 3 & 4: Distribuição por Categorias & Quem Gastou (Casal) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* Categorias mais gastas */}
+            <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+                <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                  <PieIcon className="w-4 h-4 text-emerald-600" />
+                  <span>Maiores Categorias de Despesas no Mês</span>
+                </h3>
+                <span className="text-xs font-mono text-neutral-500">
+                  {monthCategoryBreakdown.length} categorias
+                </span>
+              </div>
+
+              {monthCategoryBreakdown.length === 0 ? (
+                <div className="py-8 text-center text-xs text-neutral-400">
+                  Nenhuma despesa lançada neste mês.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {monthCategoryBreakdown.map((cat, idx) => {
+                    const pct = monthTotalActualExpense > 0 ? (cat.amount / monthTotalActualExpense) * 100 : 0;
+                    return (
+                      <div key={cat.name} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-neutral-800 truncate">
+                            {idx + 1}. {cat.name}
+                          </span>
+                          <div className="flex items-center gap-2 font-mono">
+                            <span className="text-neutral-400 text-[11px]">{pct.toFixed(1)}%</span>
+                            <span className="font-bold text-neutral-900">{formatCurrency(cat.amount)}</span>
+                          </div>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-neutral-900 rounded-full"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Divisão do Casal (Lucas vs Esposa) */}
+            <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+                <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-pink-600" />
+                  <span>Divisão de Gastos do Casal no Mês</span>
+                </h3>
+                <span className="text-xs text-neutral-500 font-medium">
+                  Transparência a dois
+                </span>
+              </div>
+
+              <div className="space-y-4 pt-1">
+                {/* Visual Ratio Bar */}
+                <div className="h-3 rounded-full bg-neutral-100 flex overflow-hidden">
+                  <div
+                    className="bg-neutral-900 transition-all"
+                    style={{ width: `${(coupleMonthBreakdown.lucasTotal / coupleMonthBreakdown.total) * 100}%` }}
+                    title={`Lucas: ${formatCurrency(coupleMonthBreakdown.lucasTotal)}`}
+                  />
+                  <div
+                    className="bg-pink-600 transition-all"
+                    style={{ width: `${(coupleMonthBreakdown.esposaTotal / coupleMonthBreakdown.total) * 100}%` }}
+                    title={`Esposa: ${formatCurrency(coupleMonthBreakdown.esposaTotal)}`}
+                  />
+                  <div
+                    className="bg-neutral-400 transition-all"
+                    style={{ width: `${(coupleMonthBreakdown.casalTotal / coupleMonthBreakdown.total) * 100}%` }}
+                    title={`Conjunto: ${formatCurrency(coupleMonthBreakdown.casalTotal)}`}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200">
+                    <span className="text-neutral-500 block text-[11px]">Gastos de Lucas</span>
+                    <span className="text-base font-bold font-mono text-neutral-900 mt-0.5 block">
+                      {formatCurrency(coupleMonthBreakdown.lucasTotal)}
+                    </span>
+                    <span className="text-[11px] font-mono text-neutral-400">
+                      {((coupleMonthBreakdown.lucasTotal / coupleMonthBreakdown.total) * 100).toFixed(0)}% do total
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-pink-50/50 border border-pink-200">
+                    <span className="text-pink-700 block text-[11px]">Gastos da Esposa</span>
+                    <span className="text-base font-bold font-mono text-pink-900 mt-0.5 block">
+                      {formatCurrency(coupleMonthBreakdown.esposaTotal)}
+                    </span>
+                    <span className="text-[11px] font-mono text-pink-700/70">
+                      {((coupleMonthBreakdown.esposaTotal / coupleMonthBreakdown.total) * 100).toFixed(0)}% do total
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-neutral-500 leading-relaxed">
+                  Ambos os cônjuges podem lançar gastos pelo celular simultaneamente. Todas as despesas e receitas sincronizam na nuvem em tempo real.
+                </p>
               </div>
             </div>
-          ))}
+
+          </div>
+
         </div>
-      </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SCOPE 2: EVOLUÇÃO NO ANO (12 MESES)                                       */}
+      {/* ========================================================================= */}
+      {viewScope === 'year' && (
+        <div className="space-y-6">
+          
+          {/* Annual Big Highlights */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-2xs">
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 block">
+                Total de Receitas do Ano
+              </span>
+              <div className="text-2xl font-bold font-mono tabular-nums text-emerald-700 mt-1">
+                +{formatCurrency(annualSummary.totalPlannedIncome || annualSummary.totalActualIncome || 0)}
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">
+                Salários, vales, horas extras e rendimentos
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-2xs">
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 block">
+                Total de Despesas do Ano
+              </span>
+              <div className="text-2xl font-bold font-mono tabular-nums text-neutral-900 mt-1">
+                -{formatCurrency(annualSummary.totalPlannedExpense || annualSummary.totalActualExpense || 0)}
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">
+                Custo de vida familiar ao longo dos 12 meses
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-2xs">
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 block">
+                Sobra Líquida Acumulada
+              </span>
+              <div className="text-2xl font-bold font-mono tabular-nums text-emerald-800 mt-1">
+                {formatCurrency(annualSummary.totalPlannedBalance || annualSummary.totalActualBalance || 0)}
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">
+                Taxa de retenção:{' '}
+                <strong className="text-emerald-700">{formatPercent(annualSummary.savingsRate)}</strong>
+              </p>
+            </div>
+          </div>
+
+          {/* Gráfico 12 Meses: Comparativo Entradas vs Saídas */}
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-100">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-emerald-600" />
+                  <span>Fluxo Mensal (Janeiro a Dezembro)</span>
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Comparação direta de Entradas vs Despesas e Sobra Líquida mês a mês
+                </p>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-xs bg-emerald-600" />
+                  <span className="text-neutral-600">Entradas</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-xs bg-neutral-800" />
+                  <span className="text-neutral-600">Despesas</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 12 Months Bars */}
+            <div className="h-48 sm:h-56 flex items-end gap-2 sm:gap-4 pt-4 pb-1 border-b border-neutral-100">
+              {monthlySummaries.map((m) => {
+                const income = m.plannedIncome || m.actualIncome;
+                const expense = m.plannedExpense || m.actualExpense;
+                const incomeHeight = maxYearlyValue > 0 ? (income / maxYearlyValue) * 100 : 0;
+                const expenseHeight = maxYearlyValue > 0 ? (expense / maxYearlyValue) * 100 : 0;
+
+                return (
+                  <div key={m.monthName} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
+                    <div className="w-full flex items-end justify-center gap-1 h-full">
+                      {/* Income Bar */}
+                      <div
+                        className="w-1/2 max-w-[20px] bg-emerald-600 hover:bg-emerald-700 rounded-t-xs transition-all"
+                        style={{ height: `${Math.max(4, incomeHeight)}%` }}
+                        title={`${m.monthName} - Entradas: ${formatCurrency(income)}`}
+                      />
+                      {/* Expense Bar */}
+                      <div
+                        className="w-1/2 max-w-[20px] bg-neutral-800 hover:bg-neutral-900 rounded-t-xs transition-all"
+                        style={{ height: `${Math.max(4, expenseHeight)}%` }}
+                        title={`${m.monthName} - Despesas: ${formatCurrency(expense)}`}
+                      />
+                    </div>
+                    <span className="text-[11px] font-mono text-neutral-500 font-semibold group-hover:text-neutral-900">
+                      {m.monthName}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Tabela Sintética dos 12 Meses (Zero poluição visual, alta legibilidade) */}
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-neutral-900">
+                Tabela Consolidada de Evolução (Jan a Dez)
+              </h3>
+              <span className="text-xs text-neutral-500">
+                Valores em Reais (R$)
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-neutral-50 text-neutral-600 font-semibold border-b border-neutral-200">
+                  <tr>
+                    <th className="py-2.5 px-4">Mês</th>
+                    <th className="py-2.5 px-4 text-right">Entradas</th>
+                    <th className="py-2.5 px-4 text-right">Despesas</th>
+                    <th className="py-2.5 px-4 text-right">Sobra Líquida</th>
+                    <th className="py-2.5 px-4 text-right">Taxa Poupança</th>
+                    <th className="py-2.5 px-4 text-right">Saldo Acumulado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {monthlySummaries.map((m) => {
+                    const inc = m.plannedIncome || m.actualIncome;
+                    const exp = m.plannedExpense || m.actualExpense;
+                    const bal = inc - exp;
+                    return (
+                      <tr key={m.monthIndex} className="hover:bg-neutral-50/70 transition-colors">
+                        <td className="py-2.5 px-4 font-bold text-neutral-900">
+                          {MONTH_FULL_NAMES[m.monthIndex]}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-emerald-700 font-medium">
+                          {formatCurrency(inc)}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-neutral-900 font-medium">
+                          {formatCurrency(exp)}
+                        </td>
+                        <td className={`py-2.5 px-4 text-right font-mono tabular-nums font-bold ${
+                          bal >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                        }`}>
+                          {formatCurrency(bal)}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums text-neutral-600">
+                          {m.savingsRate.toFixed(1)}%
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-neutral-900">
+                          {formatCurrency(m.cumulativePlannedBalance)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 };

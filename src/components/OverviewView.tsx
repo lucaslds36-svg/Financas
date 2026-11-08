@@ -32,7 +32,7 @@ import {
   MONTH_FULL_NAMES
 } from '../types/budget';
 import { formatCurrency, formatPercent, formatDateBR } from '../utils/formatters';
-import { ActiveTab } from './Header';
+import { ActiveTab } from '../types/navigation';
 
 interface OverviewViewProps {
   selectedYear: number;

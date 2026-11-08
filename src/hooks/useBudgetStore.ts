@@ -755,6 +755,35 @@ export function useBudgetStore() {
     [yearPlans, familyId, user]
   );
 
+  const resetToZero = useCallback(() => {
+    const zeroedCategories = INITIAL_CATEGORIES.map(cat => ({
+      ...cat,
+      items: cat.items.map(item => ({
+        ...item,
+        values: Array(12).fill(0)
+      }))
+    }));
+
+    setYearPlans({
+      2026: {
+        categories: zeroedCategories,
+        initialBalance: 0,
+      },
+    });
+    setSelectedYear(2026);
+    setTransactions([]);
+    setInitialAccountBalanceState(0);
+    try {
+      localStorage.removeItem(STORAGE_YEAR_PLANS_KEY);
+      localStorage.removeItem(STORAGE_SELECTED_YEAR_KEY);
+      localStorage.removeItem(STORAGE_TRANSACTIONS_KEY);
+      localStorage.removeItem(STORAGE_INITIAL_ACCOUNT_BALANCE_KEY);
+      localStorage.removeItem(STORAGE_SALARY_STRATEGY_KEY);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const resetToOriginalSpreadsheet = useCallback(() => {
     setYearPlans({
       2026: {
@@ -1059,6 +1088,7 @@ export function useBudgetStore() {
     updateTransaction,
     deleteTransaction,
     resetToOriginalSpreadsheet,
+    resetToZero,
     getComparisonData,
     exportSpreadsheetCSV,
     isCloudSyncing: isSyncing,

@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { SalaryStrategyConfig, BudgetCategory, RealCashPosition, RealTransaction, MonthIndex } from '../types/budget';
 import { formatCurrency, formatPercent, formatDateBR } from '../utils/formatters';
-import { ActiveTab } from './Header';
+import { ActiveTab } from '../types/navigation';
 
 interface SalaryStrategyViewProps {
   salaryStrategy: SalaryStrategyConfig;

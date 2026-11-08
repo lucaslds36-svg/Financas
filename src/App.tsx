@@ -5,199 +5,192 @@
 
 import React, { useState } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
-import { Header, ActiveTab } from './components/Header';
-import { OverviewView } from './components/OverviewView';
-import { SpreadsheetView } from './components/SpreadsheetView';
-import { RealTransactionsView } from './components/RealTransactionsView';
-import { PlannedVsActualView } from './components/PlannedVsActualView';
+import { Header } from './components/Header';
+import { ActiveTab } from './types/navigation';
+import { BottomNav } from './components/BottomNav';
+import { KanbanView } from './components/KanbanView';
 import { EvolutionView } from './components/EvolutionView';
-import { SalaryStrategyView } from './components/SalaryStrategyView';
+import { RealTransactionsView } from './components/RealTransactionsView';
 import { TransactionModal } from './components/TransactionModal';
-import { CategoryItemModal } from './components/CategoryItemModal';
-import { YearRolloverModal } from './components/YearRolloverModal';
+import { FamilyView } from './components/FamilyView';
 import { FamilySyncModal } from './components/FamilySyncModal';
 import { useBudgetStore } from './hooks/useBudgetStore';
 import { RealTransaction } from './types/budget';
+import { formatCurrency } from './utils/formatters';
+import { RotateCcw } from 'lucide-react';
 
 function BudgetAppContent() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  // Default to 'kanban' (Cards View) as requested
+  const [activeTab, setActiveTab] = useState<ActiveTab>('kanban');
+  
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [transactionModalType, setTransactionModalType] = useState<'income' | 'expense'>('expense');
+  const [transactionModalCategory, setTransactionModalCategory] = useState<string | undefined>(undefined);
   const [editingTransaction, setEditingTransaction] = useState<RealTransaction | null>(null);
-  const [isCategoryItemModalOpen, setIsCategoryItemModalOpen] = useState(false);
-  const [targetCategoryIdForNewItem, setTargetCategoryIdForNewItem] = useState<string | undefined>();
-  const [isYearRolloverOpen, setIsYearRolloverOpen] = useState(false);
+
   const [isFamilySyncOpen, setIsFamilySyncOpen] = useState(false);
 
   const {
     selectedYear,
-    setSelectedYear,
-    availableYears,
-    createNextYearBudget,
-    calculateYearSurplus,
-    initialBalance,
-    updateInitialBalance,
-    initialAccountBalance,
-    setInitialAccountBalance,
     realCashPosition,
-    salaryStrategy,
-    updateSalaryStrategy,
     categories,
     transactions,
     monthlySummaries,
     annualSummary,
-    financialHealth,
-    updateItemValue,
-    fillItemAllMonths,
-    addItem,
-    removeItem,
-    renameItem,
-    addCategory,
-    removeCategory,
     addTransaction,
     updateTransaction,
     deleteTransaction,
     resetToOriginalSpreadsheet,
-    getComparisonData,
+    resetToZero,
     exportSpreadsheetCSV,
   } = useBudgetStore();
 
-  const handleOpenNewTransaction = () => {
+  const handleOpenNewTransaction = (type: 'income' | 'expense' = 'expense', categoryName?: string) => {
     setEditingTransaction(null);
+    setTransactionModalType(type);
+    setTransactionModalCategory(categoryName);
     setIsTransactionModalOpen(true);
   };
 
   const handleEditTransaction = (tx: RealTransaction) => {
     setEditingTransaction(tx);
+    setTransactionModalType(tx.type);
+    setTransactionModalCategory(tx.categoryName);
     setIsTransactionModalOpen(true);
   };
 
-  const handleOpenAddItem = (categoryId?: string) => {
-    setTargetCategoryIdForNewItem(categoryId);
-    setIsCategoryItemModalOpen(true);
-  };
-
-  const handleReset = () => {
-    if (
-      confirm(
-        'Tem certeza que deseja restaurar a planilha original? Suas edições recentes serão resetadas para o modelo inicial.'
-      )
-    ) {
+  const handlePromptReset = () => {
+    const choice = prompt(
+      'Digite "zerar" para limpar todos os valores ou "original" para restaurar os dados de exemplo:'
+    );
+    if (!choice) return;
+    const clean = choice.trim().toLowerCase();
+    if (clean === 'zerar') {
+      resetToZero();
+      alert('Aplicativo zerado com sucesso!');
+    } else if (clean === 'original') {
       resetToOriginalSpreadsheet();
+      alert('Dados restaurados com sucesso.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col font-sans text-neutral-900">
-      {/* Top Bar Header & Mobile Navigation */}
+    <div className="min-h-screen bg-neutral-50 flex flex-col font-sans text-neutral-900 selection:bg-neutral-900 selection:text-white">
+      
+      {/* Clean Top Header Bar */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenNewTransaction={handleOpenNewTransaction}
-        onExportCSV={exportSpreadsheetCSV}
-        onResetOriginal={handleReset}
-        onOpenFamilySync={() => setIsFamilySyncOpen(true)}
+        selectedYear={selectedYear}
       />
 
-      {/* Main Content Area (pb-24 on mobile ensures thumb nav bar never covers content) */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
-        {activeTab === 'overview' && (
-          <OverviewView
-            selectedYear={selectedYear}
-            availableYears={availableYears}
-            onSelectYear={setSelectedYear}
-            onOpenYearRollover={() => setIsYearRolloverOpen(true)}
-            realCashPosition={realCashPosition}
-            onUpdateInitialAccountBalance={setInitialAccountBalance}
-            financialHealth={financialHealth}
-            annualSummary={annualSummary}
-            monthlySummaries={monthlySummaries}
-            recentTransactions={transactions}
-            categories={categories}
-            onNavigateTab={setActiveTab}
-            onOpenNewTransaction={handleOpenNewTransaction}
-            onOpenFamilySync={() => setIsFamilySyncOpen(true)}
-          />
-        )}
+      {/* Discrete, Clean Balance Bar */}
+      <div className="bg-white border-b border-neutral-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
+          <div className="flex items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-4 sm:gap-6 font-mono overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-neutral-500 font-sans font-medium">Saldo em Caixa:</span>
+                <span className="font-bold text-neutral-900 text-sm">
+                  {formatCurrency(realCashPosition.currentRealBalance)}
+                </span>
+              </div>
 
-        {activeTab === 'spreadsheet' && (
-          <SpreadsheetView
-            categories={categories}
-            selectedYear={selectedYear}
-            availableYears={availableYears}
-            initialBalance={initialBalance}
-            onSelectYear={setSelectedYear}
-            onOpenYearRollover={() => setIsYearRolloverOpen(true)}
-            onUpdateInitialBalance={updateInitialBalance}
-            onUpdateValue={updateItemValue}
-            onFillAllMonths={fillItemAllMonths}
-            onRemoveItem={removeItem}
-            onRenameItem={renameItem}
-            onOpenAddItem={handleOpenAddItem}
-            onRemoveCategory={removeCategory}
-          />
-        )}
+              <div className="flex items-center gap-1.5 shrink-0 text-emerald-700">
+                <span className="text-neutral-400 font-sans font-normal">Entradas Mês:</span>
+                <span className="font-bold">
+                  +{formatCurrency(realCashPosition.currentMonthPaidIncome)}
+                </span>
+              </div>
 
-        {activeTab === 'transactions' && (
-          <RealTransactionsView
+              <div className="flex items-center gap-1.5 shrink-0 text-neutral-900">
+                <span className="text-neutral-400 font-sans font-normal">Gastos Mês:</span>
+                <span className="font-bold">
+                  -{formatCurrency(realCashPosition.currentMonthPaidExpense)}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-neutral-400 font-sans font-normal">Sobra:</span>
+                <span className={`font-bold ${realCashPosition.currentMonthRealBalance >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  {formatCurrency(realCashPosition.currentMonthRealBalance)}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePromptReset}
+              className="text-[11px] font-semibold text-neutral-400 hover:text-neutral-900 transition-colors hidden sm:flex items-center gap-1 shrink-0"
+              title="Zerar valores para recomeçar do zero"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Zerar Dados</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Workspace */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 pb-24 md:pb-8">
+        
+        {/* TAB 1: Visualização por CARDS (Kanban) */}
+        {activeTab === 'kanban' && (
+          <KanbanView
             transactions={transactions}
+            categories={categories}
             onOpenNewTransaction={handleOpenNewTransaction}
             onEditTransaction={handleEditTransaction}
             onDeleteTransaction={deleteTransaction}
-          />
-        )}
-
-        {activeTab === 'comparison' && (
-          <PlannedVsActualView
+            onUpdateTransaction={updateTransaction}
             selectedYear={selectedYear}
-            getComparisonData={getComparisonData}
           />
         )}
 
+        {/* TAB 2: Visualização por GRÁFICOS (Evolução no Mês e no Ano) */}
         {activeTab === 'evolution' && (
           <EvolutionView
             selectedYear={selectedYear}
             monthlySummaries={monthlySummaries}
             categories={categories}
             annualSummary={annualSummary}
+            transactions={transactions}
           />
         )}
 
-        {activeTab === 'strategy' && (
-          <SalaryStrategyView
-            salaryStrategy={salaryStrategy}
-            onUpdateStrategy={updateSalaryStrategy}
-            categories={categories}
-            selectedYear={selectedYear}
-            realCashPosition={realCashPosition}
-            onAddTransaction={addTransaction}
-            onNavigateTab={setActiveTab}
+        {/* TAB 3: EXTRATO */}
+        {activeTab === 'transactions' && (
+          <RealTransactionsView
+            transactions={transactions}
+            onOpenNewTransaction={() => handleOpenNewTransaction('expense')}
+            onEditTransaction={handleEditTransaction}
+            onDeleteTransaction={deleteTransaction}
           />
         )}
+
+        {/* TAB 4: CASAL (Orçamento Compartilhado sem travamento) */}
+        {activeTab === 'family' && (
+          <FamilyView onBack={() => setActiveTab('kanban')} />
+        )}
+
       </main>
 
-      {/* Footer (hidden on mobile to prevent clutter) */}
-      <footer className="hidden md:block border-t border-neutral-200 bg-white py-6 mt-12 text-xs text-neutral-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Clean Footer */}
+      <footer className="hidden md:block border-t border-neutral-200 bg-white py-5 mt-10 text-xs text-neutral-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-neutral-800">Orçamento Família</span>
+            <span className="font-bold text-neutral-800">Finanças</span>
             <span>·</span>
-            <span>Ano Ativo: {selectedYear}</span>
-            <span>·</span>
-            <span>Planejamento familiar compartilhado e controle de gastos reais</span>
+            <span>Controle familiar visual e compartilhado</span>
           </div>
+
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setIsFamilySyncOpen(true)}
-              className="font-medium text-pink-700 hover:text-pink-800 transition-colors"
+              onClick={() => setActiveTab('family')}
+              className="text-pink-700 hover:text-pink-800 font-semibold transition-colors"
             >
               Espaço do Casal
-            </button>
-            <span>·</span>
-            <button
-              onClick={() => setIsYearRolloverOpen(true)}
-              className="font-medium text-emerald-700 hover:text-emerald-800 transition-colors"
-            >
-              + Virada de Ano
             </button>
             <span>·</span>
             <button
@@ -208,16 +201,16 @@ function BudgetAppContent() {
             </button>
             <span>·</span>
             <button
-              onClick={handleReset}
+              onClick={handlePromptReset}
               className="hover:text-rose-600 transition-colors"
             >
-              Restaurar Original
+              Zerar / Restaurar
             </button>
           </div>
         </div>
       </footer>
 
-      {/* Modals */}
+      {/* Modal de Lançamento Rápido */}
       <TransactionModal
         isOpen={isTransactionModalOpen}
         onClose={() => {
@@ -225,6 +218,9 @@ function BudgetAppContent() {
           setEditingTransaction(null);
         }}
         categories={categories}
+        defaultType={transactionModalType}
+        defaultCategoryName={transactionModalCategory}
+        editingTransaction={editingTransaction}
         onSave={(data) => {
           if (editingTransaction) {
             updateTransaction({
@@ -236,32 +232,16 @@ function BudgetAppContent() {
             addTransaction(data);
           }
         }}
-        editingTransaction={editingTransaction}
       />
 
-      <CategoryItemModal
-        isOpen={isCategoryItemModalOpen}
-        onClose={() => setIsCategoryItemModalOpen(false)}
-        categories={categories}
-        defaultCategoryId={targetCategoryIdForNewItem}
-        onAddItem={addItem}
-        onAddCategory={addCategory}
-      />
-
-      <YearRolloverModal
-        isOpen={isYearRolloverOpen}
-        onClose={() => setIsYearRolloverOpen(false)}
-        currentYear={selectedYear}
-        currentYearSurplus={calculateYearSurplus(selectedYear)}
-        currentInitialBalance={initialBalance}
-        availableYears={availableYears}
-        onCreateNewYear={createNextYearBudget}
-      />
-
+      {/* Family Sync Modal (if triggered via modal flag) */}
       <FamilySyncModal
         isOpen={isFamilySyncOpen}
         onClose={() => setIsFamilySyncOpen(false)}
       />
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
   );
 }
