@@ -48,32 +48,53 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [personFilter, setPersonFilter] = useState<'all' | 'lucas' | 'esposa'>('all');
 
-  // Filter transactions by month, search and person
+  // Filter and sort transactions by date (descending)
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => {
-      // Month
-      if (selectedMonth !== 'all' && tx.month !== selectedMonth) {
-        return false;
-      }
-      // Search
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        const matches = 
-          tx.description.toLowerCase().includes(query) ||
-          tx.itemName.toLowerCase().includes(query) ||
-          tx.categoryName.toLowerCase().includes(query) ||
-          (tx.createdByName && tx.createdByName.toLowerCase().includes(query));
-        if (!matches) return false;
-      }
-      // Person
-      if (personFilter !== 'all') {
-        const name = (tx.createdByName || '').toLowerCase();
-        if (personFilter === 'lucas' && !name.includes('lucas')) return false;
-        if (personFilter === 'esposa' && !name.includes('esposa')) return false;
-      }
-      return true;
-    });
+    return transactions
+      .filter((tx) => {
+        // Month
+        if (selectedMonth !== 'all' && tx.month !== selectedMonth) {
+          return false;
+        }
+        // Search
+        if (searchTerm.trim()) {
+          const query = searchTerm.toLowerCase();
+          const matches = 
+            tx.description.toLowerCase().includes(query) ||
+            tx.itemName.toLowerCase().includes(query) ||
+            tx.categoryName.toLowerCase().includes(query) ||
+            (tx.createdByName && tx.createdByName.toLowerCase().includes(query));
+          if (!matches) return false;
+        }
+        // Person
+        if (personFilter !== 'all') {
+          const name = (tx.createdByName || '').toLowerCase();
+          if (personFilter === 'lucas' && !name.includes('lucas')) return false;
+          if (personFilter === 'esposa' && !name.includes('esposa')) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date)); // Newest first
   }, [transactions, selectedMonth, searchTerm, personFilter]);
+
+  // Insight: Top spending category
+  const topSpender = useMemo(() => {
+    const expenseTxs = filteredTransactions.filter(t => t.type === 'expense');
+    const catTotals = expenseTxs.reduce((acc, t) => {
+      acc[t.categoryName] = (acc[t.categoryName] || 0) + t.amount;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    let maxCat = '';
+    let maxVal = 0;
+    for (const [name, val] of Object.entries(catTotals)) {
+      if (val > maxVal) {
+        maxVal = val;
+        maxCat = name;
+      }
+    }
+    return { name: maxCat, amount: maxVal };
+  }, [filteredTransactions]);
 
   // Quick toggle status of transaction
   const handleToggleStatus = (tx: RealTransaction) => {
@@ -252,7 +273,8 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
       <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-2xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
-          {/* Month selector & Grouping */}
+          {/* ... */}
+          {/* (Previous content remains same, I will insert the insight box below) */}
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedMonth}
@@ -338,7 +360,17 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
           </div>
 
         </div>
+        
+        {/* Insight: Top Spender */}
+        {topSpender.amount > 0 && (
+          <div className="flex items-center gap-2 text-[11px] text-neutral-600 bg-neutral-50 p-2 rounded-lg border border-neutral-200">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span className="font-semibold text-neutral-900">Spotlight:</span>
+            <span>Você está gastando mais em <strong>{topSpender.name}</strong> ({formatCurrency(topSpender.amount)})</span>
+          </div>
+        )}
       </div>
+
 
 
       {/* Kanban Board Columns Container */}
