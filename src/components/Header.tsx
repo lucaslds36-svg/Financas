@@ -10,6 +10,7 @@ import {
   Heart,
   ArrowUpRight
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -85,6 +86,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             
             {/* Couple Indicator / Nav Button */}
+            <PWAInstallButton />
             <button
               onClick={() => setActiveTab('family')}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
